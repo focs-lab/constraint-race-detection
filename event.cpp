@@ -48,10 +48,7 @@ public:
 
     std::string toString() const {
         std::ostringstream oss;
-        oss << "Event Type: " << getEventType() << ", "
-            << "Thread ID: " << getThreadId() << ", "
-            << "Variable ID: " << getVarId() << ", "
-            << "Variable Value: " << getVarValue();
+        oss << "Event Id: " << getEventId();
         return oss.str();
     }
 

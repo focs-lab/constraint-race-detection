@@ -3,6 +3,7 @@
 #include <memory>
 #include <z3++.h>
 
+class IntExpr;
 class VarExpr;
 class LessThanExpr;
 class AndExpr;
@@ -10,6 +11,7 @@ class OrExpr;
 
 class ExprVisitor {
 public:
+    virtual void visit(const IntExpr& expr) = 0;
     virtual void visit(const VarExpr& expr) = 0;
     virtual void visit(const LessThanExpr& expr) = 0;
     virtual void visit(const AndExpr& expr) = 0;
@@ -20,6 +22,23 @@ class Expr {
 public:
     virtual void accept(ExprVisitor& visitor) const = 0;
     virtual void print() const = 0;
+};
+
+class IntExpr : public Expr {
+private:
+    int value;
+public:
+    IntExpr(int value_) : value(value_) {}
+
+    int getValue() const {
+        return value;
+    }
+
+    void print() const override {
+        std::cout << value;
+    }
+
+    void accept(ExprVisitor& visitor) const override;
 };
 
 class VarExpr : public Expr {
@@ -99,6 +118,7 @@ public:
     }
 };
 
+void IntExpr::accept(ExprVisitor& visitor) const { visitor.visit(*this); }
 void VarExpr::accept(ExprVisitor& visitor) const { visitor.visit(*this); }
 void LessThanExpr::accept(ExprVisitor& visitor) const { visitor.visit(*this); }
 void AndExpr::accept(ExprVisitor& visitor) const { visitor.visit(*this); }
@@ -106,6 +126,10 @@ void OrExpr::accept(ExprVisitor& visitor) const { visitor.visit(*this); }
 
 class ExprBuilder {
 public:
+    static std::shared_ptr<Expr> intVal(int value) {
+        return std::make_shared<IntExpr>(value);
+    }
+
     static std::shared_ptr<Expr> var(const std::string& name) {
         return std::make_shared<VarExpr>(name);
     }
@@ -129,6 +153,10 @@ private:
     z3::expr result;
 public:
     Z3ExprVisitor(z3::context& ctx_) : ctx(ctx_), result(ctx_) {}
+
+    void visit(const IntExpr& expr) override {
+        result = ctx.int_val(expr.getValue());
+    }
 
     void visit(const VarExpr& expr) override {
         result = ctx.int_const(expr.getName().c_str());

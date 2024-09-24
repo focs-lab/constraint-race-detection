@@ -10,7 +10,7 @@
 class Trace {
    private:
     std::vector<Event> raw_events;
-    std::unordered_map<uint32_t, std::vector<uint32_t>> thread_to_events_map;
+    std::unordered_map<uint32_t, std::vector<Event>> thread_to_events_map;
     std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
         lock_pairs;
     std::unordered_map<uint32_t, std::vector<Event>> reads;
@@ -20,7 +20,7 @@ class Trace {
     std::vector<std::pair<Event, Event>> cops;
 
     Trace(std::vector<Event> raw_events_,
-          std::unordered_map<uint32_t, std::vector<uint32_t>>
+          std::unordered_map<uint32_t, std::vector<Event>>
               thread_to_events_map_,
           std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
               lock_pairs_,
@@ -42,7 +42,7 @@ class Trace {
     static Trace* fromLog(const std::string& filename) {
         std::ifstream inputFile(filename);
         std::vector<Event> raw_events;
-        std::unordered_map<uint32_t, std::vector<uint32_t>>
+        std::unordered_map<uint32_t, std::vector<Event>>
             thread_to_events_map;
         std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
             lock_pairs;
@@ -68,7 +68,7 @@ class Trace {
                 Event e = Event(rawEvent, event_no++);
 
                 raw_events.push_back(e);
-                thread_to_events_map[e.getThreadId()].push_back(e.getEventId());
+                thread_to_events_map[e.getThreadId()].push_back(e);
 
                 switch (e.getEventType()) {
                     case Event::EventType::Acquire:
@@ -132,7 +132,7 @@ class Trace {
 
     std::vector<Event> getAllEvents() const { return raw_events; }
 
-    std::unordered_map<uint32_t, std::vector<uint32_t>> getThreadToEventsMap()
+    std::unordered_map<uint32_t, std::vector<Event>> getThreadToEventsMap()
         const {
         return thread_to_events_map;
     }
@@ -151,4 +151,20 @@ class Trace {
     }
 
     std::vector<std::pair<Event, Event>> getCOPEvents() const { return cops; }
+
+    std::vector<Event> getWriteEvents(uint32_t varId) const {
+        if (writes.find(varId) == writes.end()) return {};
+        return writes.at(varId);
+    }
+
+    std::vector<Event> getReadEvents(uint32_t varId) const {
+        if (reads.find(varId) == reads.end()) return {};
+        return reads.at(varId);
+    }
+
+    std::vector<Event> getEventsFromThread(uint32_t threadId) const {
+        if (thread_to_events_map.find(threadId) == thread_to_events_map.end())
+            return {};
+        return thread_to_events_map.at(threadId);
+    }
 };
