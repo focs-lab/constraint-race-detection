@@ -7,8 +7,6 @@
 
 #include "event.cpp"
 
-const std::string output_dir = "./formatted_logs";
-
 std::unordered_map<std::string, Event::EventType> eventTypeMapping= {
     {"Read", Event::EventType::Read},
     {"Write", Event::EventType::Write},
@@ -23,6 +21,9 @@ std::unordered_map<std::string, Event::EventType> eventTypeMapping= {
 std::unordered_map<std::string, uint32_t> varNameMapping;
 uint32_t availVarId = 0;
 
+std::unordered_map<std::string, uint32_t> lockNameMapping;
+uint32_t availLockId = 0;
+
 uint64_t parseLineToRawEvent(const std::string& line) {
     std::istringstream iss(line);
     std::string eventTypeStr, varName;
@@ -34,22 +35,35 @@ uint64_t parseLineToRawEvent(const std::string& line) {
 
     Event::EventType eventType = eventTypeMapping[eventTypeStr];
     
-    if (varNameMapping.find(varName) != varNameMapping.end()) {
-        varId = varNameMapping[varName];
+    if (eventType == Event::EventType::Read || eventType == Event::EventType::Write) {
+        if (varNameMapping.find(varName) != varNameMapping.end()) {
+            varId = varNameMapping[varName];
+        } else {
+            varId = varNameMapping[varName] = availVarId++;
+        }
+    } else if (eventType == Event::EventType::Acquire || eventType == Event::EventType::Release) {
+        if (lockNameMapping.find(varName) != lockNameMapping.end()) {
+            varId = lockNameMapping[varName];
+        } else {
+            varId = lockNameMapping[varName] = availLockId++;
+        }
+    } else if (eventType == Event::EventType::Fork || eventType == Event::EventType::Join) {
+        varId = std::stoul(varName);
     } else {
-        varId = varNameMapping[varName] = availVarId++;
+        varId = 0;
     }
 
     return Event::createRawEvent(eventType, threadId, varId, varValue);
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Please provide an input file\n";
+    if (argc < 3) {
+        std::cerr << "Usage: <input_file> <output_dir>\n";
         return 0;
     }
 
     std::string inputFilePath = argv[1];
+    std::string output_dir = argv[2];
 
     std::filesystem::path inputPath(inputFilePath);
     std::string filename = inputPath.filename().string();

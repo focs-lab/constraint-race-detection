@@ -52,6 +52,39 @@ public:
         return oss.str();
     }
 
+    std::string prettyString() const {
+        std::ostringstream oss;
+        std::string event_type;
+        switch (getEventType()) {
+            case EventType::Read:
+                event_type = "Read";
+                break;
+            case EventType::Write:
+                event_type = "Write";
+                break;
+            case EventType::Acquire:
+                event_type = "Acquire";
+                break;
+            case EventType::Release:
+                event_type = "Release";
+                break;
+            case EventType::Begin:
+                event_type = "Begin";
+                break;
+            case EventType::End:
+                event_type = "End";
+                break;
+            case EventType::Fork:
+                event_type = "Fork";
+                break;
+            case EventType::Join:
+                event_type = "Join";
+                break;
+        }
+        oss << "Event Id: " << getEventId() <<  ": " << event_type << " " << getThreadId() << " " << getVarId() << " " << getVarValue();
+        return oss.str();
+    }
+
     static uint64_t createRawEvent(EventType eventType, uint32_t threadId, uint32_t varId, uint32_t varValue) {
         eventType = static_cast<EventType>(eventType & 0xF);
         threadId = threadId & 0xFF;

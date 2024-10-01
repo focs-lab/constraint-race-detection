@@ -1,5 +1,4 @@
 bin/
-formatted_logs/
-logs/
-STD-Format/
+traces/
 r0*/
+output/

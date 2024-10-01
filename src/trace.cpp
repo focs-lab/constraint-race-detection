@@ -87,7 +87,7 @@ class Trace {
                     case Event::EventType::Fork:
                         forks[e.getVarId()] = e.getEventId();
                         break;
-                    case Event::EventType::Begin:
+                    case Event::EventType::Begin: 
                         fork_begin_pairs.push_back(
                             {forks[e.getThreadId()], e.getEventId()});
                         break;
@@ -125,6 +125,29 @@ class Trace {
                 }
             }
         }
+
+        // std::cout << "Raw events: " << std::endl;
+        // for (const Event& e : raw_events) {
+        //     std::cout << e.prettyString() << std::endl;
+        // }
+
+        // std::cout << "lock pairs: " << std::endl;
+        // for (const auto& [lockId, acq_rel_pairs] : lock_pairs) {
+        //     for (const auto& [acq, rel] : acq_rel_pairs) {
+        //         std::cout << acq.prettyString() << " - " << rel.prettyString()
+        //                   << std::endl;
+        //     }
+        // }
+
+        // std::cout << "fork begin pairs: " << std::endl;
+        // for (const auto& [fork, begin] : fork_begin_pairs) {
+        //     std::cout << fork << " - " << begin << std::endl;
+        // }
+
+        // std::cout << "join end pairs: " << std::endl;
+        // for (const auto& [join, end] : join_end_pairs) {
+        //     std::cout << join << " - " << end << std::endl;
+        // }
 
         return new Trace(raw_events, thread_to_events_map, lock_pairs, reads,
                          writes, fork_begin_pairs, join_end_pairs, cops);

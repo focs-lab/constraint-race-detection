@@ -43,16 +43,16 @@ public:
 
 class VarExpr : public Expr {
 private:
-    std::string name;
+    uint32_t varId;
 public:
-    VarExpr(const std::string& name_) : name(name_) {}
+    VarExpr(uint32_t varId_) : varId(varId_) {}
 
-    const std::string& getName() const {
-        return name;
+    uint32_t getVarId() const {
+        return varId;
     }
     
     void print() const override {
-        std::cout << name;
+        std::cout << varId;
     }
     void accept(ExprVisitor& visitor) const override;
 };
@@ -130,19 +130,31 @@ public:
         return std::make_shared<IntExpr>(value);
     }
 
-    static std::shared_ptr<Expr> var(const std::string& name) {
-        return std::make_shared<VarExpr>(name);
+    static std::shared_ptr<Expr> var(uint32_t varId) {
+        return std::make_shared<VarExpr>(varId);
     }
 
     static std::shared_ptr<Expr> lessThan(const std::shared_ptr<Expr>& left, const std::shared_ptr<Expr>& right) {
+        if (left == nullptr || right == nullptr) {
+            std::cout << "Invalid less than expr" << std::endl;
+            return nullptr;
+        }
         return std::make_shared<LessThanExpr>(left, right);
     }
 
     static std::shared_ptr<Expr> andExpr(const std::shared_ptr<Expr>& left, const std::shared_ptr<Expr>& right) {
+        if (left == nullptr || right == nullptr) {
+            std::cout << "Invalid and expr" << std::endl;
+            return nullptr;
+        }
         return std::make_shared<AndExpr>(left, right);
     }
 
     static std::shared_ptr<Expr> orExpr(const std::shared_ptr<Expr>& left, const std::shared_ptr<Expr>& right) {
+        if (left == nullptr || right == nullptr) {
+            std::cout << "Invalid or expr" << std::endl;
+            return nullptr;
+        }
         return std::make_shared<OrExpr>(left, right);
     }
 };
@@ -151,15 +163,22 @@ class Z3ExprVisitor : public ExprVisitor {
 private:
     z3::context& ctx;
     z3::expr result;
+    z3::expr_vector& varMap;
+    int count;
 public:
-    Z3ExprVisitor(z3::context& ctx_) : ctx(ctx_), result(ctx_) {}
+    Z3ExprVisitor(z3::context& ctx_, z3::expr_vector& varMap_) : ctx(ctx_), result(ctx_), varMap(varMap_) { count = 0; }
 
     void visit(const IntExpr& expr) override {
         result = ctx.int_val(expr.getValue());
     }
 
     void visit(const VarExpr& expr) override {
-        result = ctx.int_const(expr.getName().c_str());
+        // result = ctx.int_const(expr.getName().c_str());
+        if (expr.getVarId() <= 0) {
+            std::cout << "Invalid var id: " << expr.getVarId() << std::endl;
+            return;
+        }
+        result = varMap[expr.getVarId()-1];
     }
 
     void visit(const LessThanExpr& expr) override {
@@ -188,5 +207,67 @@ public:
 
     z3::expr getResult() const {
         return result;
+    }
+};
+
+class ConstraintCounter : public ExprVisitor {
+private:
+    int expr_count;
+    int constraint_count;
+public:
+    ConstraintCounter() : expr_count(0), constraint_count(0) {}
+
+    void visit(const IntExpr& expr) override {
+        return;
+    }
+
+    void visit(const VarExpr& expr) override {
+        expr_count++;
+        // std::cout << "Var: " << expr.getVarId() << std::endl;
+    }
+
+    void visit(const LessThanExpr& expr) override {
+        expr.getLhs()->accept(*this);
+        expr.getRhs()->accept(*this);
+        constraint_count++;
+    }
+
+    void visit(const AndExpr& expr) override {
+        expr.getLhs()->accept(*this);
+        expr.getRhs()->accept(*this);
+        constraint_count++;
+    }
+
+    void visit(const OrExpr& expr) override {
+        expr.getLhs()->accept(*this);
+        expr.getRhs()->accept(*this);
+        constraint_count++;
+    }
+
+    int getCount() const {
+        return constraint_count;
+    }
+};
+
+class PrintVisitor : public ExprVisitor {
+public:
+    void visit(const IntExpr& expr) override {
+        expr.print();
+    }
+
+    void visit(const VarExpr& expr) override {
+        expr.print();
+    }
+
+    void visit(const LessThanExpr& expr) override {
+        expr.print();
+    }
+
+    void visit(const AndExpr& expr) override {
+        expr.print();
+    }
+
+    void visit(const OrExpr& expr) override {
+        expr.print();
     }
 };
