@@ -1,9 +1,9 @@
 #include <z3++.h>
 
+#include <chrono>
 #include <memory>
 #include <utility>
 #include <vector>
-#include <chrono>
 
 #include "event.cpp"
 #include "trace.cpp"
@@ -25,33 +25,54 @@ class Z3MaximalCasualModel {
     z3::expr_vector readCFConstraints;
 
     z3::expr getZ3ExprFromEvent(const Event& e, z3::context& c) {
-        return c.int_const(std::to_string(e.getEventId()).c_str());
+        return c.int_const(("e" + std::to_string(e.getEventId())).c_str());
     }
 
     z3::expr getZ3ExprFromEvent(uint32_t eid, z3::context& c) {
-        return c.int_const(std::to_string(eid).c_str());
+        return c.int_const(("e" + std::to_string(eid)).c_str());
     }
 
    public:
     Z3MaximalCasualModel(Trace& trace_)
-        : trace(trace_), c(), varMap(c), mhbs(c), lockConstraints(c), readCFConstraints(c) {
+        : trace(trace_),
+          c(),
+          varMap(c),
+          mhbs(c),
+          lockConstraints(c),
+          readCFConstraints(c) {
         auto start = std::chrono::high_resolution_clock::now();
 
         generateVarMap();
         auto end = std::chrono::high_resolution_clock::now();
-        DEBUG_PRINT("Generated var map, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+        DEBUG_PRINT("Generated var map, took: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(
+                           end - start)
+                           .count()
+                    << "ms");
 
         generateMHBConstraints();
         end = std::chrono::high_resolution_clock::now();
-        DEBUG_PRINT("Generated MHB constraints, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+        DEBUG_PRINT("Generated MHB constraints, took: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(
+                           end - start)
+                           .count()
+                    << "ms");
 
         generateLockConstraints();
         end = std::chrono::high_resolution_clock::now();
-        DEBUG_PRINT("Generated lock constraints, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+        DEBUG_PRINT("Generated lock constraints, took: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(
+                           end - start)
+                           .count()
+                    << "ms");
 
         generateReadCFConstraints();
         end = std::chrono::high_resolution_clock::now();
-        DEBUG_PRINT("Generated read cf constraints, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+        DEBUG_PRINT("Generated read cf constraints, took: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(
+                           end - start)
+                           .count()
+                    << "ms");
     }
 
     void generateVarMap() {
@@ -158,6 +179,26 @@ class Z3MaximalCasualModel {
         }
     }
 
+    void printModel(const z3::model& m) {
+        std::vector<Event> events = trace.getAllEvents();
+        std::vector<std::pair<std::string, z3::expr>> modelValues;
+        for (unsigned i = 0; i < m.size(); i++) {
+            z3::func_decl v = m[i];
+            modelValues.push_back({v.name().str(), m.get_const_interp(v)});
+        }
+
+        std::sort(modelValues.begin(), modelValues.end(),
+                  [](const auto& a, const auto& b) {
+                      return a.second.get_numeral_int() <
+                             b.second.get_numeral_int();
+                  });
+        
+        for (const auto& [name, value] : modelValues) {
+            int i = std::stoi(name.substr(1)) - 1;
+            DEBUG_PRINT(value << ": " << name << " - " << events[i].prettyString());
+        }
+    }
+
     uint32_t solveForRace() {
         DEBUG_PRINT("No of COP events: " << trace.getCOPEvents().size());
         uint32_t race_count = 0;
@@ -173,8 +214,11 @@ class Z3MaximalCasualModel {
 
             s.add((e1 - e2 == 1) || (e2 - e1 == 1));
             if (s.check() == z3::sat) {
-                DEBUG_PRINT("event pair: " << cop.first.getEventId() << " - "
-                                            << cop.second.getEventId());
+                #ifdef DEBUG
+                z3::model m = s.get_model();
+                printModel(m);
+                #endif
+
                 race_count++;
             }
         }
@@ -184,39 +228,62 @@ class Z3MaximalCasualModel {
     uint32_t solveForRace(uint32_t maxCOP) {
         uint32_t race_count = 0;
         for (int i = 0; i < maxCOP; ++i) {
-            if (i > trace.getCOPEvents().size())
-                break;
+            if (i > trace.getCOPEvents().size()) break;
             auto [e1, e2] = trace.getCOPEvents()[i];
             z3::solver s(c);
 
             auto start = std::chrono::high_resolution_clock::now();
             s.add(z3::distinct(varMap));
             auto end = std::chrono::high_resolution_clock::now();
-            DEBUG_PRINT("added distinct constraints, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+            DEBUG_PRINT(
+                "added distinct constraints, took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
 
             s.add(mhbs);
             end = std::chrono::high_resolution_clock::now();
-            DEBUG_PRINT("added MHB constraints, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+            DEBUG_PRINT(
+                "added MHB constraints, took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
 
             s.add(lockConstraints);
             end = std::chrono::high_resolution_clock::now();
-            DEBUG_PRINT("added lock constraints, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+            DEBUG_PRINT(
+                "added lock constraints, took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
 
             s.add(readCFConstraints);
             end = std::chrono::high_resolution_clock::now();
-            DEBUG_PRINT("added read cf constraints, took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+            DEBUG_PRINT(
+                "added read cf constraints, took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
 
             z3::expr e1_expr = varMap[e1.getEventId() - 1];
             z3::expr e2_expr = varMap[e2.getEventId() - 1];
 
             s.add((e1_expr - e2_expr == 1) || (e2_expr - e1_expr == 1));
             if (s.check() == z3::sat) {
-                DEBUG_PRINT("event pair: " << e1.getEventId() << " - "
-                                            << e2.getEventId());
                 race_count++;
             }
             end = std::chrono::high_resolution_clock::now();
-            DEBUG_PRINT("solving for pair " << e1.getEventId() << " - " << e2.getEventId() << ", took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms");
+            DEBUG_PRINT(
+                "solved for pair "
+                << e1.getEventId() << " - " << e2.getEventId() << ", took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
         }
         return race_count;
     }

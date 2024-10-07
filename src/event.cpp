@@ -55,33 +55,42 @@ public:
     std::string prettyString() const {
         std::ostringstream oss;
         std::string event_type;
+        std::string var_prefix;
         switch (getEventType()) {
             case EventType::Read:
                 event_type = "Read";
+                var_prefix = "X_";
                 break;
             case EventType::Write:
                 event_type = "Write";
+                var_prefix = "X_";
                 break;
             case EventType::Acquire:
                 event_type = "Acquire";
+                var_prefix = "l_";
                 break;
             case EventType::Release:
                 event_type = "Release";
+                var_prefix = "l_";
                 break;
             case EventType::Begin:
                 event_type = "Begin";
+                var_prefix = "";
                 break;
             case EventType::End:
                 event_type = "End";
+                var_prefix = "";
                 break;
             case EventType::Fork:
                 event_type = "Fork";
+                var_prefix = "T_";
                 break;
             case EventType::Join:
                 event_type = "Join";
+                var_prefix = "T_";
                 break;
         }
-        oss << "Event Id: " << getEventId() <<  ": " << event_type << " " << getThreadId() << " " << getVarId() << " " << getVarValue();
+        oss << event_type << " " << getThreadId() << " " << var_prefix << getVarId() << " " << getVarValue();
         return oss.str();
     }
 
