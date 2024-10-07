@@ -66,11 +66,11 @@ int main(int argc, char* argv[]) {
     std::string output_dir = argv[2];
 
     std::filesystem::path inputPath(inputFilePath);
-    std::string filename = inputPath.filename().string();
+    std::string filename = inputPath.stem().string();
     std::filesystem::path outputFilePath = std::filesystem::path(output_dir) / filename;
 
     std::ifstream inputFile(inputFilePath);
-    std::ofstream outputFile(outputFilePath);
+    std::ofstream outputFile(outputFilePath, std::ios::binary);
 
     if (!inputFile.is_open() || !outputFile.is_open()) {
         std::cerr << "Error opening files." << std::endl;
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
     while (std::getline(inputFile, line)) {
         try {
             uint64_t rawEvent = parseLineToRawEvent(line);
-            outputFile << rawEvent << std::endl;
+            outputFile.write(reinterpret_cast<const char*>(&rawEvent), sizeof(uint64_t));
         } catch (const std::runtime_error& e) {
             std::cerr << e.what() << std::endl;
         }

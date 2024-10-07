@@ -4,7 +4,7 @@ PROGRAM="$PWD/bin/rvpredict"
 OUTPUT_FILE="$PWD/output/rvpredict_results.txt"
 LINE_COUNT_FILE="$PWD/output/line_count.txt"
 
-TIME_LIMIT=180
+TIME_LIMIT=300
 
 > "$OUTPUT_FILE"
 

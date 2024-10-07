@@ -19,16 +19,16 @@ class Trace {
     std::vector<std::pair<uint32_t, uint32_t>> join_end_pairs;
     std::vector<std::pair<Event, Event>> cops;
 
-    Trace(std::vector<Event> raw_events_,
-          std::unordered_map<uint32_t, std::vector<Event>>
-              thread_to_events_map_,
-          std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
-              lock_pairs_,
-          std::unordered_map<uint32_t, std::vector<Event>> reads_,
-          std::unordered_map<uint32_t, std::vector<Event>> writes_,
-          std::vector<std::pair<uint32_t, uint32_t>> fork_begin_pairs_,
-          std::vector<std::pair<uint32_t, uint32_t>> join_end_pairs_,
-          std::vector<std::pair<Event, Event>> cops_)
+    Trace(
+        std::vector<Event> raw_events_,
+        std::unordered_map<uint32_t, std::vector<Event>> thread_to_events_map_,
+        std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
+            lock_pairs_,
+        std::unordered_map<uint32_t, std::vector<Event>> reads_,
+        std::unordered_map<uint32_t, std::vector<Event>> writes_,
+        std::vector<std::pair<uint32_t, uint32_t>> fork_begin_pairs_,
+        std::vector<std::pair<uint32_t, uint32_t>> join_end_pairs_,
+        std::vector<std::pair<Event, Event>> cops_)
         : raw_events(raw_events_),
           thread_to_events_map(thread_to_events_map_),
           lock_pairs(lock_pairs_),
@@ -42,8 +42,7 @@ class Trace {
     static Trace* fromLog(const std::string& filename) {
         std::ifstream inputFile(filename);
         std::vector<Event> raw_events;
-        std::unordered_map<uint32_t, std::vector<Event>>
-            thread_to_events_map;
+        std::unordered_map<uint32_t, std::vector<Event>> thread_to_events_map;
         std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
             lock_pairs;
         std::unordered_map<uint32_t, Event> last_acquire_event;
@@ -60,11 +59,11 @@ class Trace {
             return nullptr;
         }
 
-        std::string line;
+        uint64_t rawEvent;
         uint32_t event_no = 1;
-        while (std::getline(inputFile, line)) {
+        while (inputFile.read(reinterpret_cast<char*>(&rawEvent),
+                              sizeof(rawEvent))) {
             try {
-                uint64_t rawEvent = std::stoull(line);
                 Event e = Event(rawEvent, event_no++);
 
                 raw_events.push_back(e);
@@ -87,7 +86,7 @@ class Trace {
                     case Event::EventType::Fork:
                         forks[e.getVarId()] = e.getEventId();
                         break;
-                    case Event::EventType::Begin: 
+                    case Event::EventType::Begin:
                         fork_begin_pairs.push_back(
                             {forks[e.getThreadId()], e.getEventId()});
                         break;
@@ -102,7 +101,7 @@ class Trace {
                         break;
                 }
             } catch (const std::exception& e) {
-                std::cerr << "Error parsing line: " << line << " - " << e.what()
+                std::cerr << "Error parsing line: " << e.what() << " - " << e.what()
                           << std::endl;
                 return nullptr;
             }
@@ -134,7 +133,8 @@ class Trace {
         // std::cout << "lock pairs: " << std::endl;
         // for (const auto& [lockId, acq_rel_pairs] : lock_pairs) {
         //     for (const auto& [acq, rel] : acq_rel_pairs) {
-        //         std::cout << acq.prettyString() << " - " << rel.prettyString()
+        //         std::cout << acq.prettyString() << " - " <<
+        //         rel.prettyString()
         //                   << std::endl;
         //     }
         // }

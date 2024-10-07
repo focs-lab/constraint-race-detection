@@ -173,7 +173,6 @@ public:
     }
 
     void visit(const VarExpr& expr) override {
-        // result = ctx.int_const(expr.getName().c_str());
         if (expr.getVarId() <= 0) {
             std::cout << "Invalid var id: " << expr.getVarId() << std::endl;
             return;
@@ -223,7 +222,6 @@ public:
 
     void visit(const VarExpr& expr) override {
         expr_count++;
-        // std::cout << "Var: " << expr.getVarId() << std::endl;
     }
 
     void visit(const LessThanExpr& expr) override {

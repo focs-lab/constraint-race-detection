@@ -16,7 +16,7 @@ FORMATTED_TRACE_DIR=$(TRACE_DIR)/formatted_traces
 TARGET = $(BIN_DIR)/rvpredict
 TRACE_GENERATOR = $(BIN_DIR)/trace_generator
 
-DEPS = $(SRC_DIR)/event.cpp $(SRC_DIR)/trace.cpp $(SRC_DIR)/maximal_casual_model.cpp $(SRC_DIR)/expr.cpp
+DEPS = $(SRC_DIR)/event.cpp $(SRC_DIR)/trace.cpp $(SRC_DIR)/maximal_casual_model.cpp $(SRC_DIR)/expr.cpp $(SRC_DIR)/z3_maximal_casual_model.cpp 
 SRC = $(SRC_DIR)/rvpredict.cpp
 TRACE_GENERATOR_SRC = $(SRC_DIR)/trace_generator.cpp
 
@@ -44,7 +44,7 @@ gen_from_std_trace:
 
 gen_single_trace: $(TRACE_GENERATOR)
 	mkdir -p $(FORMATTED_TRACE_DIR)
-	$(TRACE_GENERATOR) $(args) $(FORMATTED_TRACE_DIR)
+	$(TRACE_GENERATOR) $(HUMANREADABLE_TRACE_DIR)/$(file).txt $(FORMATTED_TRACE_DIR)
 
 gen_traces: $(TRACE_GENERATOR)
 	mkdir -p $(FORMATTED_TRACE_DIR)
@@ -54,7 +54,9 @@ gen_traces: $(TRACE_GENERATOR)
 	done
 
 run: $(TARGET)
-	@$(TARGET) $(FORMATTED_TRACE_DIR)/$(file)
+	@$(TARGET) $(FORMATTED_TRACE_DIR)/$(file) $(max_race)
+
+gen_and_run: gen_single_trace run
 
 # Clean target to remove the compiled files
 clean:
