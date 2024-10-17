@@ -1,28 +1,55 @@
 #include <z3++.h>
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
+#include <string_view>
 #include <utility>
 #include <vector>
-#include <chrono>
 
+#include "cmd_argument_parser.cpp"
+#include "custom_maximal_casual_model.cpp"
 #include "event.cpp"
-#include "maximal_casual_model.cpp"
-#include "z3_maximal_casual_model.cpp"
+#include "model_logger.cpp"
+#include "partial_maximal_casual_model.cpp"
 #include "trace.cpp"
+#include "z3_maximal_casual_model.cpp"
+
+std::string witness_trace_dir = "output/witness_traces";
+
+std::string custom_repr = "custom";
+std::string partial_z3_expr = "partial_z3";
+std::string full_z3_expr = "full_z3";
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
+    Parser parser(argc, argv);
+
+    std::string filename;
+    std::string repr_type;
+    uint32_t maxNoOfCOP;
+    bool logWitness = parser.hasArgument("--log_witness");
+    bool getStatistics = parser.hasArgument("--statistics");
+
+    if (parser.hasArgument("-f")) {
+        filename = parser.getArgument("-f");
+    } else {
         std::cerr << "Please provide an input file\n";
         return 0;
     }
 
-    std::string filename = argv[1];
+    if (parser.hasArgument("-r")) {
+        repr_type = parser.getArgument("-r");
 
-    uint32_t maxNoOfCOP = 0;
-    if (argc == 3) {
+        if (repr_type != custom_repr && repr_type != partial_z3_expr &&
+            repr_type != full_z3_expr) {
+            std::cerr << "Invalid representation type\n";
+            return 1;
+        }
+    }
+
+    if (parser.hasArgument("-c")) {
         try {
-            maxNoOfCOP = std::stoul(argv[2]);
+            maxNoOfCOP = std::stoul(parser.getArgument("-c"));
         } catch (std::exception& e) {
             std::cerr << "Invalid max number of COP events\n";
             return 1;
@@ -32,24 +59,44 @@ int main(int argc, char* argv[]) {
     auto start = std::chrono::high_resolution_clock::now();
 
     Trace* trace = Trace::fromLog(filename);
+
+    std::filesystem::path fs_path(filename);
+    ModelLogger* logger =
+        new ModelLogger(*trace, witness_trace_dir, fs_path.stem().string());
     if (trace == nullptr) {
         std::cerr << "Error parsing log file" << std::endl;
         return 1;
     }
 
-    Z3MaximalCasualModel z3mcm(*trace);
-
     uint32_t race_count;
-    if (maxNoOfCOP) {
-        race_count = z3mcm.solveForRace(maxNoOfCOP);
+    Model* m;
+
+    if (repr_type == custom_repr) {
+        m = new CustomMaximalCasualModel(*trace);
+    } else if (repr_type == partial_z3_expr) {
+        m = new PartialMaximalCasualModel(*trace);
     } else {
-        race_count = z3mcm.solveForRace();
+        m = new Z3MaximalCasualModel(*trace, *logger, logWitness);
     }
-    
+
+    if (getStatistics) {
+        m->getStatistics();
+    } else if (maxNoOfCOP) {
+        race_count = m->solveForRace(maxNoOfCOP);
+    } else {
+        race_count = m->solveForRace();
+    }
+
     auto end = std::chrono::high_resolution_clock::now();
 
-    std::cout << "Number of races detected: " << race_count << std::endl;
-    std::cout << "Total time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+    if (!getStatistics)
+        std::cout << "Number of races detected: " << race_count << std::endl;
+    
+    std::cout << "Total time taken: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                       start)
+                     .count()
+              << "ms" << std::endl;
 
     return 0;
 }

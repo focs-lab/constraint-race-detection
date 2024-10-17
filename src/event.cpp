@@ -1,16 +1,24 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 #include <iostream>
 #include <sstream>
+#include <string>
+
+#ifdef DEBUG
+#define DEBUG_PRINT(x) std::cout << x << std::endl
+#else
+#define DEBUG_PRINT(x)
+#endif
 
 class Event {
-private:
-    // 4 bits event identifier, 8 bits thread identifier, 20 bits variable identifer, 32 bits variable value
+   private:
+    // 4 bits event identifier, 8 bits thread identifier, 20 bits variable
+    // identifer, 32 bits variable value
     uint64_t raw_event;
     uint32_t event_id;
-public:
+
+   public:
     enum EventType {
         Read = 0,
         Write = 1,
@@ -24,27 +32,20 @@ public:
 
     Event() : raw_event(0), event_id(0) {}
 
-    Event(uint64_t raw_event_, uint32_t event_id_) : raw_event(raw_event_), event_id(event_id_) {}
+    Event(uint64_t raw_event_, uint32_t event_id_)
+        : raw_event(raw_event_), event_id(event_id_) {}
 
     EventType getEventType() const {
         return static_cast<EventType>((raw_event >> 60) & 0xF);
     }
 
-    uint32_t getThreadId() const {
-        return (raw_event >> 52) & 0xFF;
-    } 
+    uint32_t getThreadId() const { return (raw_event >> 52) & 0xFF; }
 
-    uint32_t getVarId() const {
-        return (raw_event >> 32) & 0xFFFFF;
-    }
+    uint32_t getVarId() const { return (raw_event >> 32) & 0xFFFFF; }
 
-    uint32_t getVarValue() const {
-        return raw_event & 0xFFFFFFFF;
-    }
+    uint32_t getVarValue() const { return raw_event & 0xFFFFFFFF; }
 
-    uint32_t getEventId() const {
-        return event_id;
-    }
+    uint32_t getEventId() const { return event_id; }
 
     std::string toString() const {
         std::ostringstream oss;
@@ -66,11 +67,11 @@ public:
                 var_prefix = "X_";
                 break;
             case EventType::Acquire:
-                event_type = "Acquire";
+                event_type = "Acq";
                 var_prefix = "l_";
                 break;
             case EventType::Release:
-                event_type = "Release";
+                event_type = "Rel";
                 var_prefix = "l_";
                 break;
             case EventType::Begin:
@@ -90,11 +91,13 @@ public:
                 var_prefix = "T_";
                 break;
         }
-        oss << event_type << " " << getThreadId() << " " << var_prefix << getVarId() << " " << getVarValue();
+        oss << event_type << " " << getThreadId() << " " << var_prefix
+            << getVarId() << " " << getVarValue();
         return oss.str();
     }
 
-    static uint64_t createRawEvent(EventType eventType, uint32_t threadId, uint32_t varId, uint32_t varValue) {
+    static uint64_t createRawEvent(EventType eventType, uint32_t threadId,
+                                   uint32_t varId, uint32_t varValue) {
         eventType = static_cast<EventType>(eventType & 0xF);
         threadId = threadId & 0xFF;
         varId = varId & 0xFFFFF;
@@ -102,8 +105,7 @@ public:
 
         return (static_cast<uint64_t>(eventType) << 60) |
                (static_cast<uint64_t>(threadId) << 52) |
-               (static_cast<uint64_t>(varId) << 32) |
-               varValue;
+               (static_cast<uint64_t>(varId) << 32) | varValue;
     }
 };
 

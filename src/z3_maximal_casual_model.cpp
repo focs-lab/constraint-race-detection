@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "event.cpp"
+#include "model.cpp"
+#include "model_logger.cpp"
 #include "trace.cpp"
 
 #ifdef DEBUG
@@ -14,9 +16,12 @@
 #define DEBUG_PRINT(x)
 #endif
 
-class Z3MaximalCasualModel {
+class Z3MaximalCasualModel : public Model {
    private:
     Trace& trace;
+    ModelLogger& logger;
+
+    bool logWitness;
 
     z3::context c;
     z3::expr_vector varMap;
@@ -24,17 +29,25 @@ class Z3MaximalCasualModel {
     z3::expr_vector lockConstraints;
     z3::expr_vector readCFConstraints;
 
+    // For debugging
+    uint64_t totalFeasibleWrites = 0;
+    uint64_t totalInFeasibleWrites = 0;
+    uint64_t totalReads = 0;
+
     z3::expr getZ3ExprFromEvent(const Event& e, z3::context& c) {
-        return c.int_const(("e" + std::to_string(e.getEventId())).c_str());
+        return c.int_const((std::to_string(e.getEventId())).c_str());
     }
 
     z3::expr getZ3ExprFromEvent(uint32_t eid, z3::context& c) {
-        return c.int_const(("e" + std::to_string(eid)).c_str());
+        return c.int_const((std::to_string(eid)).c_str());
     }
 
    public:
-    Z3MaximalCasualModel(Trace& trace_)
+    Z3MaximalCasualModel(Trace& trace_, ModelLogger& logger_,
+                         bool logWitness = false)
         : trace(trace_),
+          logger(logger_),
+          logWitness(logWitness),
           c(),
           varMap(c),
           mhbs(c),
@@ -52,6 +65,7 @@ class Z3MaximalCasualModel {
 
         generateMHBConstraints();
         end = std::chrono::high_resolution_clock::now();
+        DEBUG_PRINT("No of MHB constraints: " << mhbs.size());
         DEBUG_PRINT("Generated MHB constraints, took: "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(
                            end - start)
@@ -60,6 +74,7 @@ class Z3MaximalCasualModel {
 
         generateLockConstraints();
         end = std::chrono::high_resolution_clock::now();
+        DEBUG_PRINT("No of lock constraints: " << lockConstraints.size());
         DEBUG_PRINT("Generated lock constraints, took: "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(
                            end - start)
@@ -68,6 +83,12 @@ class Z3MaximalCasualModel {
 
         generateReadCFConstraints();
         end = std::chrono::high_resolution_clock::now();
+        DEBUG_PRINT("No of read cf constraints: " << readCFConstraints.size());
+        DEBUG_PRINT("Total reads: " << totalReads);
+        DEBUG_PRINT("Average no of feasible writes: "
+                    << (double)totalFeasibleWrites / totalReads);
+        DEBUG_PRINT("Average no of infeasible writes: "
+                    << (double)totalInFeasibleWrites / totalReads);
         DEBUG_PRINT("Generated read cf constraints, took: "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(
                            end - start)
@@ -175,27 +196,14 @@ class Z3MaximalCasualModel {
 
                 if (r_cf.size() > 0)
                     readCFConstraints.push_back(z3::mk_or(r_cf));
+
+                if (r_cf.size() > 0) {
+                    totalFeasibleWrites += feasibleWrites.size();
+                    totalInFeasibleWrites += inFeasibleWrites.size();
+                    totalReads++;
+                    if (same_initial_val) totalFeasibleWrites += 1;
+                }
             }
-        }
-    }
-
-    void printModel(const z3::model& m) {
-        std::vector<Event> events = trace.getAllEvents();
-        std::vector<std::pair<std::string, z3::expr>> modelValues;
-        for (unsigned i = 0; i < m.size(); i++) {
-            z3::func_decl v = m[i];
-            modelValues.push_back({v.name().str(), m.get_const_interp(v)});
-        }
-
-        std::sort(modelValues.begin(), modelValues.end(),
-                  [](const auto& a, const auto& b) {
-                      return a.second.get_numeral_int() <
-                             b.second.get_numeral_int();
-                  });
-        
-        for (const auto& [name, value] : modelValues) {
-            int i = std::stoi(name.substr(1)) - 1;
-            DEBUG_PRINT(value << ": " << name << " - " << events[i].prettyString());
         }
     }
 
@@ -204,7 +212,6 @@ class Z3MaximalCasualModel {
         uint32_t race_count = 0;
         for (auto& cop : trace.getCOPEvents()) {
             z3::solver s(c);
-            s.add(z3::distinct(varMap));
             s.add(mhbs);
             s.add(lockConstraints);
             s.add(readCFConstraints);
@@ -214,11 +221,10 @@ class Z3MaximalCasualModel {
 
             s.add((e1 - e2 == 1) || (e2 - e1 == 1));
             if (s.check() == z3::sat) {
-                #ifdef DEBUG
-                z3::model m = s.get_model();
-                printModel(m);
-                #endif
-
+                if (logWitness) {
+                    z3::model m = s.get_model();
+                    logger.logWitnessPrefix(m, cop.first, cop.second);
+                }
                 race_count++;
             }
         }
@@ -226,6 +232,7 @@ class Z3MaximalCasualModel {
     }
 
     uint32_t solveForRace(uint32_t maxCOP) {
+        DEBUG_PRINT("No of COP events: " << trace.getCOPEvents().size());
         uint32_t race_count = 0;
         for (int i = 0; i < maxCOP; ++i) {
             if (i > trace.getCOPEvents().size()) break;
@@ -233,17 +240,9 @@ class Z3MaximalCasualModel {
             z3::solver s(c);
 
             auto start = std::chrono::high_resolution_clock::now();
-            s.add(z3::distinct(varMap));
-            auto end = std::chrono::high_resolution_clock::now();
-            DEBUG_PRINT(
-                "added distinct constraints, took: "
-                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
-                                                                         start)
-                       .count()
-                << "ms");
 
             s.add(mhbs);
-            end = std::chrono::high_resolution_clock::now();
+            auto end = std::chrono::high_resolution_clock::now();
             DEBUG_PRINT(
                 "added MHB constraints, took: "
                 << std::chrono::duration_cast<std::chrono::milliseconds>(end -
@@ -286,5 +285,43 @@ class Z3MaximalCasualModel {
                 << "ms");
         }
         return race_count;
+    }
+
+    void getStatistics() {
+        DEBUG_PRINT("No of COP events: " << trace.getCOPEvents().size());
+        for (int i = 0; i < 1; ++i) {
+            if (i > trace.getCOPEvents().size()) break;
+            auto [e1, e2] = trace.getCOPEvents()[i];
+            z3::solver s(c);
+
+            auto start = std::chrono::high_resolution_clock::now();
+
+            s.add(mhbs);
+            auto end = std::chrono::high_resolution_clock::now();
+            DEBUG_PRINT(
+                "added MHB constraints, took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
+
+            s.add(lockConstraints);
+            end = std::chrono::high_resolution_clock::now();
+            DEBUG_PRINT(
+                "added lock constraints, took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
+
+            s.add(readCFConstraints);
+            end = std::chrono::high_resolution_clock::now();
+            DEBUG_PRINT(
+                "added read cf constraints, took: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                         start)
+                       .count()
+                << "ms");
+        }
     }
 };
