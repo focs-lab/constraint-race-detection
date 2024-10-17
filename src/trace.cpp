@@ -54,6 +54,9 @@ class Trace {
         std::vector<std::pair<uint32_t, uint32_t>> join_end_pairs;
         std::vector<std::pair<Event, Event>> cops;
 
+        std::unordered_map<uint32_t, uint32_t> prev_read_in_thread;
+        std::unordered_map<uint32_t, uint32_t> thread_to_last_read;
+
         if (!inputFile.is_open()) {
             std::cerr << "Error opening file: " << filename << std::endl;
             return nullptr;
@@ -79,9 +82,17 @@ class Trace {
                         break;
                     case Event::EventType::Read:
                         reads[e.getVarId()].push_back(e);
+                        thread_to_last_read[e.getThreadId()] = e.getEventId();
                         break;
                     case Event::EventType::Write:
                         writes[e.getVarId()].push_back(e);
+                        if (thread_to_last_read.find(e.getThreadId()) !=
+                            thread_to_last_read.end()) {
+                            prev_read_in_thread[e.getThreadId()] =
+                                thread_to_last_read[e.getThreadId()];
+                        } else {
+                            prev_read_in_thread[e.getThreadId()] = 0;
+                        }
                         break;
                     case Event::EventType::Fork:
                         forks[e.getVarId()] = e.getEventId();
@@ -101,8 +112,8 @@ class Trace {
                         break;
                 }
             } catch (const std::exception& e) {
-                std::cerr << "Error parsing line: " << e.what() << " - " << e.what()
-                          << std::endl;
+                std::cerr << "Error parsing line: " << e.what() << " - "
+                          << e.what() << std::endl;
                 return nullptr;
             }
         }
