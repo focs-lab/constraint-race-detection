@@ -16,7 +16,8 @@ FORMATTED_TRACE_DIR=$(TRACE_DIR)/formatted_traces
 TARGET = $(BIN_DIR)/rvpredict
 TRACE_GENERATOR = $(BIN_DIR)/trace_generator
 
-DEPS = $(SRC_DIR)/event.cpp $(SRC_DIR)/trace.cpp $(SRC_DIR)/maximal_casual_model.cpp $(SRC_DIR)/expr.cpp $(SRC_DIR)/z3_maximal_casual_model.cpp 
+DEPS = $(SRC_DIR)/event.cpp $(SRC_DIR)/trace.cpp $(SRC_DIR)/model.cpp $(SRC_DIR)/custom_maximal_casual_model.cpp $(SRC_DIR)/expr.cpp $(SRC_DIR)/z3_maximal_casual_model.cpp $(SRC_DIR)/partial_maximal_casual_model.cpp
+DEPS += $(SRC_DIR)/model_logger.cpp
 SRC = $(SRC_DIR)/rvpredict.cpp
 TRACE_GENERATOR_SRC = $(SRC_DIR)/trace_generator.cpp
 
@@ -40,7 +41,10 @@ debug: $(SRC) $(DEPS)
 
 gen_from_std_trace:
 	mkdir -p $(HUMANREADABLE_TRACE_DIR)
-	python $(STD_CONVERTER) $(STD_TRACE_DIR) $(HUMANREADABLE_TRACE_DIR)
+	@for file in $(shell ls $(STD_TRACE_DIR)/*.std); do \
+		echo "Generating human readable trace for $$file..."; \
+		python $(STD_CONVERTER) $$file $(HUMANREADABLE_TRACE_DIR);\
+	done
 
 gen_single_trace: $(TRACE_GENERATOR)
 	mkdir -p $(FORMATTED_TRACE_DIR)
@@ -54,7 +58,7 @@ gen_traces: $(TRACE_GENERATOR)
 	done
 
 run: $(TARGET)
-	@$(TARGET) $(FORMATTED_TRACE_DIR)/$(file) $(max_race)
+	@$(TARGET) -f $(FORMATTED_TRACE_DIR)/$(file) --log_witness
 
 gen_and_run: gen_single_trace run
 
