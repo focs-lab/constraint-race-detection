@@ -3,7 +3,13 @@ CXXFLAGS = -std=c++17
 
 DEBUGFLAGS = -DDEBUG
 
-Z3_LIB = -lz3
+Z3_INCLUDE = -I/opt/homebrew/opt/z3/include
+Z3_LIB = -L/opt/homebrew/opt/z3/lib -lz3
+
+CUSTOM_Z3_INCLUDE = -I/Users/rama/Desktop/FYP/z3/src/api/c++ -I/Users/rama/Desktop/FYP/z3/src/api
+CUSTOM_Z3_LIB = -L/Users/rama/Desktop/FYP/z3/build -lz3
+
+# export DYLD_LIBRARY_PATH=/Users/rama/Desktop/FYP/z3/build:$DYLD_LIBRARY_PATH
 
 BIN_DIR=bin
 SRC_DIR=src
@@ -25,11 +31,11 @@ STD_CONVERTER=scripts/convert.py
 
 readable_traces = $(shell ls $(HUMANREADABLE_TRACE_DIR)/*.txt)
 
-all: $(TARGET)
+all: $(TARGET) $(TRACE_GENERATOR)
 
 $(TARGET): $(SRC) $(DEPS)
 	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC) $(Z3_LIB)
+	$(CXX) $(CXXFLAGS) $(Z3_INCLUDE) -o $(TARGET) $(SRC) $(Z3_LIB)
 
 $(TRACE_GENERATOR): $(TRACE_GENERATOR_SRC)
 	mkdir -p $(BIN_DIR)
@@ -37,7 +43,11 @@ $(TRACE_GENERATOR): $(TRACE_GENERATOR_SRC)
 
 debug: $(SRC) $(DEPS)
 	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(DEBUGFLAGS) -o $(TARGET) $(SRC) $(Z3_LIB)
+	$(CXX) $(CXXFLAGS) $(Z3_INCLUDE) $(DEBUGFLAGS) -o $(TARGET) $(SRC) $(Z3_LIB)
+
+custom_debug: $(SRC) $(DEPS)
+	mkdir -p $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $(CUSTOM_Z3_INCLUDE) $(DEBUGFLAGS) -o $(TARGET) $(SRC) $(CUSTOM_Z3_LIB)
 
 gen_from_std_trace:
 	mkdir -p $(HUMANREADABLE_TRACE_DIR)

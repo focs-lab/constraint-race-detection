@@ -14,6 +14,7 @@
 #include "partial_maximal_casual_model.cpp"
 #include "trace.cpp"
 #include "z3_maximal_casual_model.cpp"
+#include "z3_v3_model.cpp"
 
 std::string witness_trace_dir = "output/witness_traces";
 
@@ -58,6 +59,13 @@ int main(int argc, char* argv[]) {
 
     auto start = std::chrono::high_resolution_clock::now();
 
+    Z3_enable_trace("setup");
+    Z3_enable_trace("theory_dl");
+    Z3_enable_trace("dl_bug");
+    Z3_enable_trace("diff_logic");
+    Z3_enable_trace("ddl");
+    Z3_enable_trace("rama");
+
     Trace* trace = Trace::fromLog(filename);
 
     std::filesystem::path fs_path(filename);
@@ -76,7 +84,9 @@ int main(int argc, char* argv[]) {
     } else if (repr_type == partial_z3_expr) {
         m = new PartialMaximalCasualModel(*trace);
     } else {
-        m = new Z3MaximalCasualModel(*trace, *logger, logWitness);
+        // m = new Z3MaximalCasualModel(*trace, *logger, logWitness);
+        // m = new Z3V2Model(*trace, *logger, logWitness);
+        m = new Z3V3Model(*trace, *logger, logWitness);
     }
 
     if (getStatistics) {

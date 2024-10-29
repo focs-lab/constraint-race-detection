@@ -47,6 +47,8 @@ class ModelLogger {
 
         outputFile << "witness for: e" << e1.getEventId() << " - e"
                    << e2.getEventId() << std::endl;
+        DEBUG_PRINT("witness for: e" << e1.getEventId() << " - e"
+                                    << e2.getEventId());
         for (const auto& [name, value] : modelValues) {
             int i = std::stoi(name) - 1;
             outputFile << value << ": " << name << " - "
@@ -56,6 +58,7 @@ class ModelLogger {
         }
         outputFile << "------------------------------------------------------"
                    << std::endl;
+        DEBUG_PRINT("------------------------------------------------------");
     }
 
     void logWitnessPrefix(const z3::model& m, const Event& e1,
