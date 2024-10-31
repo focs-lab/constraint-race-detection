@@ -107,6 +107,10 @@ class Event {
                (static_cast<uint64_t>(threadId) << 52) |
                (static_cast<uint64_t>(varId) << 32) | varValue;
     }
+
+    static bool isNullEvent(Event e) {
+        return e.getEventId() == 0;
+    }
 };
 
 std::ostream& operator<<(std::ostream& os, const Event& event) {

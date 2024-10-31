@@ -15,6 +15,7 @@
 #include "trace.cpp"
 #include "z3_maximal_casual_model.cpp"
 #include "z3_v3_model.cpp"
+#include "z3_v4_model.cpp"
 
 std::string witness_trace_dir = "output/witness_traces";
 
@@ -65,6 +66,7 @@ int main(int argc, char* argv[]) {
     Z3_enable_trace("diff_logic");
     Z3_enable_trace("ddl");
     Z3_enable_trace("rama");
+    Z3_enable_trace("arith");
 
     Trace* trace = Trace::fromLog(filename);
 
@@ -86,7 +88,8 @@ int main(int argc, char* argv[]) {
     } else {
         // m = new Z3MaximalCasualModel(*trace, *logger, logWitness);
         // m = new Z3V2Model(*trace, *logger, logWitness);
-        m = new Z3V3Model(*trace, *logger, logWitness);
+        // m = new Z3V3Model(*trace, *logger, logWitness);
+        m = new Z3V4Model(*trace, *logger, logWitness);
     }
 
     if (getStatistics) {

@@ -48,6 +48,13 @@ class Trace {
                        std::unordered_map<uint32_t, std::vector<LockRegion>>>
         lock_regions;
 
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
+        thread_to_event_to_last_read;
+
+    std::unordered_map<uint32_t, std::vector<Event>> reads_to_feasible_writes;
+    std::unordered_map<uint32_t, std::vector<Event>> reads_to_infeasible_writes;
+    std::unordered_map<uint32_t, Event> same_thread_same_var_prev_write;
+
     Trace(
         std::vector<Event> raw_events_,
         std::unordered_map<uint32_t, std::vector<Event>> thread_to_events_map_,
@@ -56,6 +63,8 @@ class Trace {
         std::unordered_map<
             uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
             lock_regions_,
+        std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
+            thread_to_event_to_last_read_,
         std::unordered_map<uint32_t, std::vector<Event>> reads_,
         std::unordered_map<uint32_t, std::vector<Event>> writes_,
         std::vector<std::pair<uint32_t, uint32_t>> fork_begin_pairs_,
@@ -65,11 +74,36 @@ class Trace {
           thread_to_events_map(thread_to_events_map_),
           lock_pairs(lock_pairs_),
           lock_regions(lock_regions_),
+          thread_to_event_to_last_read(thread_to_event_to_last_read_),
           reads(reads_),
           writes(writes_),
           fork_begin_pairs(fork_begin_pairs_),
           join_end_pairs(join_end_pairs_),
-          cops(cops_) {}
+          cops(cops_) {
+            generateFeasibleWrites();
+          }
+
+    void generateFeasibleWrites() {
+        for (const auto& [varId, readVec] : reads) {
+            for (const Event& r : readVec) {
+                for (const Event& e : getWriteEvents(varId)) {
+                    if (r.getThreadId() == e.getThreadId() && e.getEventId() > r.getEventId())
+                        continue;
+                    
+                    if (r.getThreadId() == e.getThreadId()) {
+                        same_thread_same_var_prev_write[r.getEventId()] = e;
+                        continue;
+                    }
+
+                    if (e.getVarValue() == r.getVarValue()) {
+                        reads_to_feasible_writes[r.getEventId()].push_back(e);
+                    } else {
+                        reads_to_infeasible_writes[r.getEventId()].push_back(e);
+                    }
+                }
+            }
+        }
+    }
 
    public:
     static Trace* fromLog(const std::string& filename) {
@@ -93,8 +127,9 @@ class Trace {
         std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
             lockId_to_threadId_to_last_acquire_event;
 
-        std::unordered_map<uint32_t, uint32_t> prev_read_in_thread;
-        std::unordered_map<uint32_t, uint32_t> thread_to_last_read;
+        std::unordered_map<uint32_t, Event> prev_read_in_thread;
+        std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
+            thread_to_event_to_last_read;
 
         if (!inputFile.is_open()) {
             std::cerr << "Error opening file: " << filename << std::endl;
@@ -102,6 +137,9 @@ class Trace {
         }
 
         uint64_t rawEvent;
+
+        /* We will start event IDs from 1, this way we can use event ID 0 to
+         * represent an null event */
         uint32_t event_no = 1;
         while (inputFile.read(reinterpret_cast<char*>(&rawEvent),
                               sizeof(rawEvent))) {
@@ -131,16 +169,29 @@ class Trace {
                     }
                     case Event::EventType::Read:
                         reads[e.getVarId()].push_back(e);
-                        thread_to_last_read[e.getThreadId()] = e.getEventId();
+                        if (prev_read_in_thread.find(e.getThreadId()) !=
+                            prev_read_in_thread.end()) {
+                            thread_to_event_to_last_read
+                                [e.getThreadId()][e.getEventId()] =
+                                    prev_read_in_thread[e.getThreadId()];
+                        } else {
+                            thread_to_event_to_last_read[e.getThreadId()]
+                                                        [e.getEventId()] =
+                                                            Event();
+                        }
+                        prev_read_in_thread[e.getThreadId()] = e;
                         break;
                     case Event::EventType::Write:
                         writes[e.getVarId()].push_back(e);
-                        if (thread_to_last_read.find(e.getThreadId()) !=
-                            thread_to_last_read.end()) {
-                            prev_read_in_thread[e.getThreadId()] =
-                                thread_to_last_read[e.getThreadId()];
+                        if (prev_read_in_thread.find(e.getThreadId()) !=
+                            prev_read_in_thread.end()) {
+                            thread_to_event_to_last_read
+                                [e.getThreadId()][e.getEventId()] =
+                                    prev_read_in_thread[e.getThreadId()];
                         } else {
-                            prev_read_in_thread[e.getThreadId()] = 0;
+                            thread_to_event_to_last_read[e.getThreadId()]
+                                                        [e.getEventId()] =
+                                                            Event();
                         }
                         break;
                     case Event::EventType::Fork:
@@ -185,7 +236,8 @@ class Trace {
             }
         }
 
-        return new Trace(raw_events, thread_to_events_map, lock_pairs, lock_regions, reads,
+        return new Trace(raw_events, thread_to_events_map, lock_pairs,
+                         lock_regions, thread_to_event_to_last_read, reads,
                          writes, fork_begin_pairs, join_end_pairs, cops);
     }
 
@@ -227,7 +279,41 @@ class Trace {
         return thread_to_events_map.at(threadId);
     }
 
-    std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>> getLockRegions() const {
+    std::unordered_map<uint32_t,
+                       std::unordered_map<uint32_t, std::vector<LockRegion>>>
+    getLockRegions() const {
         return lock_regions;
+    }
+
+    Event getPrevReadInThread(Event e) const {
+        auto thread_it = thread_to_event_to_last_read.find(e.getThreadId());
+        if (thread_it == thread_to_event_to_last_read.end()) {
+            return Event();
+        }
+
+        auto event_it = thread_it->second.find(e.getEventId());
+        if (event_it == thread_it->second.end()) {
+            return Event();
+        }
+
+        return event_it->second;
+    }
+
+    std::vector<Event> getFeasibleWrites(Event& r) const {
+        if (reads_to_feasible_writes.find(r.getEventId()) == reads_to_feasible_writes.end()) 
+            return {};
+        return reads_to_feasible_writes.at(r.getEventId());
+    } 
+
+    std::vector<Event> getInFeasibleWrites(Event& r) const {
+        if (reads_to_infeasible_writes.find(r.getEventId()) == reads_to_infeasible_writes.end()) 
+            return {};
+        return reads_to_infeasible_writes.at(r.getEventId());
+    } 
+
+    Event getSameThreadSameVarPrevWrite(Event& r) const {
+        if (same_thread_same_var_prev_write.find(r.getEventId()) == same_thread_same_var_prev_write.end()) 
+            return Event();
+        return same_thread_same_var_prev_write.at(r.getEventId());
     }
 };

@@ -437,9 +437,9 @@ class Z3V3Model : public Model {
             z3::expr e2_expr = varMap[e2.getEventId() - 1];
 
             z3::expr_vector test(c);
-            // test.push_back((e1_expr == e2_expr || e1_expr - e2_expr == 1 ||
-                            // e2_expr - e1_expr == 1));
-            test.push_back(e1_expr == e2_expr);
+            test.push_back((e1_expr == e2_expr || e1_expr - e2_expr == 1 ||
+                            e2_expr - e1_expr == 1));
+            // test.push_back(e1_expr == e2_expr);
             if (s.check(test) == z3::sat) {
                 if (logWitness) {
                     auto model = s.get_model();
