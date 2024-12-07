@@ -44,11 +44,15 @@ class Z3V2Model : public Model {
           logger(logger_),
           logWitness(logWitness),
           c(),
-          s(c),
+          s(c, "QF_IDL"),
           varMap(c),
           mhbs(c),
           lockConstraints(c),
           readCFConstraints(c) {
+        z3::params p(c);
+        p.set("auto_config", false);
+        p.set("smt.arith.solver", (unsigned)1);
+        s.set(p);
         generateVarMap();
         generateMHBConstraints();
         generateLockConstraints();
@@ -65,7 +69,7 @@ class Z3V2Model : public Model {
         for (const auto& [threadId, events] : trace.getThreadToEventsMap()) {
             for (int i = 0; i < events.size(); ++i) {
                 if (i == 0) {
-                    mhbs.push_back(varMap[events[i].getEventId() - 1] > 0);
+                    // mhbs.push_back(varMap[events[i].getEventId() - 1] > 0);
                 } else {
                     mhbs.push_back(varMap[events[i - 1].getEventId() - 1] <
                                    varMap[events[i].getEventId() - 1]);
@@ -96,10 +100,9 @@ class Z3V2Model : public Model {
                     z3::expr rel2_lt_acq1 =
                         varMap[acq_rel_pairs[j].second.getEventId() - 1] <
                         varMap[acq_rel_pairs[i].first.getEventId() - 1];
-                    lockC.push_back((rel1_lt_acq2 || rel2_lt_acq1));
+                    lockConstraints.push_back((rel1_lt_acq2 || rel2_lt_acq1));
                 }
             }
-            lockConstraints.push_back(z3::mk_or(lockC));
         }
     }
 
@@ -135,6 +138,8 @@ class Z3V2Model : public Model {
 
                 for (Event& fw : feasibleWrites) {
                     z3::expr_vector tmp(c);
+                    tmp.push_back(varMap[fw.getEventId() - 1] <
+                                  varMap[r.getEventId() - 1]);
                     for (Event& ifw : inFeasibleWrites) {
                         tmp.push_back(varMap[ifw.getEventId() - 1] <
                                           varMap[fw.getEventId() - 1] ||
@@ -161,52 +166,37 @@ class Z3V2Model : public Model {
 
     uint32_t solveForRace() {
         uint32_t race_count = 0;
-        c.set(":logic", "QF_IDL");
-        s.add(z3::mk_and(mhbs) && z3::mk_and(lockConstraints) &&
-              z3::mk_and(readCFConstraints));
-        // s.add(z3::mk_and(mhbs));
-        // s.add(z3::mk_and(lockConstraints));
-        // s.add(z3::mk_and(readCFConstraints));
+        s.add(mhbs);
+        s.add(lockConstraints);
+        s.add(readCFConstraints);
         for (const auto& [e1, e2] : trace.getCOPEvents()) {
-            // s.push();
             z3::expr e1_expr = varMap[e1.getEventId() - 1];
             z3::expr e2_expr = varMap[e2.getEventId() - 1];
 
             z3::expr_vector test(c);
-            test.push_back((e1_expr == e2_expr));
-            // s.add(test);
+            test.push_back((e1_expr == e2_expr || e1_expr - e2_expr == 1 || e2_expr - e1_expr == 1));
+
             if (s.check(test) == z3::sat) race_count++;
-            // s.pop();
         }
         return race_count;
     }
 
     uint32_t solveForRace(uint32_t maxCOP) {
         uint32_t race_count = 0;
-        // c.set(":logic", "QF_IDL");
-        z3::solver news(c);
-        // news.set("logic", "QF_IDL");
-        // news.add(z3::mk_and(mhbs));
-        // news.add(z3::mk_and(lockConstraints));
 
-        // news.add(z3::mk_and(mhbs) && z3::mk_and(lockConstraints) &&
-        //          z3::mk_and(readCFConstraints));
-
-        news.add(mhbs);
-        news.add(lockConstraints);
-        news.add(readCFConstraints);
+        s.add(mhbs);
+        s.add(lockConstraints);
+        s.add(readCFConstraints);
         for (int i = 0; i < maxCOP; ++i) {
-            // news.push();
             if (i > trace.getCOPEvents().size()) break;
             auto [e1, e2] = trace.getCOPEvents()[i];
             z3::expr e1_expr = varMap[e1.getEventId() - 1];
             z3::expr e2_expr = varMap[e2.getEventId() - 1];
 
             z3::expr_vector test(c);
-            test.push_back((e1_expr == e2_expr));
+            test.push_back((e1_expr == e2_expr || e1_expr - e2_expr == 1 || e2_expr - e1_expr == 1));
 
-            if (news.check(test) == z3::sat) race_count++;
-            // news.pop();
+            if (s.check(test) == z3::sat) race_count++;
         }
         return race_count;
     }
@@ -251,19 +241,10 @@ class Z3MaximalCasualModel : public Model {
           mhbs(c),
           lockConstraints(c),
           readCFConstraints(c) {
-        auto start = std::chrono::high_resolution_clock::now();
-
         generateVarMap();
-        auto end = std::chrono::high_resolution_clock::now();
-
         generateMHBConstraints();
-        end = std::chrono::high_resolution_clock::now();
-
         generateLockConstraints();
-        end = std::chrono::high_resolution_clock::now();
-
         generateReadCFConstraints();
-        end = std::chrono::high_resolution_clock::now();
     }
 
     void generateVarMap() {
@@ -362,10 +343,6 @@ class Z3MaximalCasualModel : public Model {
                                       varMap[ifw.getEventId() - 1]);
                     }
                     if (tmp.size() > 0) r_cf.push_back(z3::mk_and(tmp));
-                    for (Event& fw : feasibleWrites) {
-                        r_cf.push_back(varMap[r.getEventId() - 1] <
-                                       varMap[fw.getEventId() - 1]);
-                    }
                 }
 
                 if (r_cf.size() > 0)
@@ -375,22 +352,25 @@ class Z3MaximalCasualModel : public Model {
     }
 
     uint32_t solveForRace() {
-        DEBUG_PRINT("No of COP events: " << trace.getCOPEvents().size());
         uint32_t race_count = 0;
         z3::solver s(c);
         s.add(mhbs);
         s.add(lockConstraints);
         s.add(readCFConstraints);
 
+        std::cout << "No of COP events: " << trace.getCOPEvents().size() << "\n";
+
         for (int i = 0; i < trace.getCOPEvents().size(); ++i) {
             auto cop = trace.getCOPEvents()[i];
-            s.push();
+
             z3::expr e1 = varMap[cop.first.getEventId() - 1];
             z3::expr e2 = varMap[cop.second.getEventId() - 1];
 
-            s.add((e1 - e2 == 1) || (e2 - e1 == 1 || e1 == e2));
-            auto start = std::chrono::high_resolution_clock::now();
-            if (s.check() == z3::sat) {
+            z3::expr_vector test(c);
+
+            test.push_back((e1 - e2 == 1) || (e2 - e1 == 1 || e1 == e2));
+
+            if (s.check(test) == z3::sat) {
                 if (logWitness) {
                     z3::model m = s.get_model();
                     logger.logWitnessPrefix(m, cop.first, cop.second);
@@ -398,14 +378,11 @@ class Z3MaximalCasualModel : public Model {
 
                 race_count++;
             }
-            auto end = std::chrono::high_resolution_clock::now();
-            s.pop();
         }
         return race_count;
     }
 
     uint32_t solveForRace(uint32_t maxCOP) {
-        DEBUG_PRINT("No of COP events: " << trace.getCOPEvents().size());
         uint32_t race_count = 0;
         z3::solver s(c);
         s.add(mhbs);
@@ -414,18 +391,15 @@ class Z3MaximalCasualModel : public Model {
         for (int i = 0; i < maxCOP; ++i) {
             if (i > trace.getCOPEvents().size()) break;
             auto [e1, e2] = trace.getCOPEvents()[i];
-            s.push();
-            auto start = std::chrono::high_resolution_clock::now();
-
             z3::expr e1_expr = varMap[e1.getEventId() - 1];
             z3::expr e2_expr = varMap[e2.getEventId() - 1];
 
-            s.add((e1_expr - e2_expr == 1) || (e2_expr - e1_expr == 1 || e1_expr == e2_expr));
-            if (s.check() == z3::sat) {
+            z3::expr_vector test(c);
+
+            test.push_back((e1_expr - e2_expr == 1) || (e2_expr - e1_expr == 1 || e1_expr == e2_expr));
+            if (s.check(test) == z3::sat) {
                 race_count++;
             }
-            auto end = std::chrono::high_resolution_clock::now();
-            s.pop();
         }
         return race_count;
     }

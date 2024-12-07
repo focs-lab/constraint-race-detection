@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <cassert>
 
 #ifdef DEBUG
 #define DEBUG_PRINT(x) std::cout << x << std::endl

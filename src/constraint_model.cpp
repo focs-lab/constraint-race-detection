@@ -1,13 +1,11 @@
 #include <z3++.h>
 
 #include <chrono>
-#include <memory>
 #include <utility>
 #include <vector>
 
 #include "event.cpp"
 #include "lock_set_engine.cpp"
-#include "model.cpp"
 #include "model_logger.cpp"
 #include "trace.cpp"
 #include "transitive_closure.cpp"
@@ -18,7 +16,7 @@
 #define DEBUG_PRINT(x)
 #endif
 
-class Z3V4Model : public Model {
+class ConstraintModel {
    private:
     Trace& trace;
     ModelLogger& logger;
@@ -57,7 +55,7 @@ class Z3V4Model : public Model {
     }
 
    public:
-    Z3V4Model(Trace& trace_, ModelLogger& logger_, bool logWitness = false)
+    ConstraintModel(Trace& trace_, ModelLogger& logger_, bool logWitness = false)
         : trace(trace_),
           logger(logger_),
           logWitness(logWitness),
@@ -76,7 +74,6 @@ class Z3V4Model : public Model {
         generateVarMap();
         generateMHBConstraints();
         generateLockConstraints();
-        // generateReadCFConstraints();
         filterCop();
     }
 
@@ -143,267 +140,8 @@ class Z3V4Model : public Model {
                     z3::expr rel2_lt_acq1 =
                         varMap[acq_rel_pairs[j].second.getEventId() - 1] <
                         varMap[acq_rel_pairs[i].first.getEventId() - 1];
-                    lockConstraints.push_back((rel1_lt_acq2 || rel2_lt_acq1));
-                }
-            }
-        }
-    }
-
-    void generateReadCFConstraints(Event& r) {
-        std::vector<Event> feasibleWrites;
-        std::vector<Event> inFeasibleWrites;
-
-        bool has_write_events = trace.getWriteEvents(r.getVarId()).size() > 0;
-        bool same_initial_val =
-            r.getVarValue() ==
-                trace.getReadEvents(r.getVarId())[0].getVarValue() &&
-            (!has_write_events ||
-             trace.getReadEvents(r.getVarId())[0].getEventId() <
-                 trace.getWriteEvents(r.getVarId())[0].getEventId());
-
-        Event sameThreadPrevWrite;
-        bool hasSameThreadPrevWrite = false;
-
-        for (Event& e : trace.getWriteEvents(r.getVarId())) {
-            if (e.getThreadId() == r.getThreadId() &&
-                e.getEventId() > r.getEventId())
-                continue;
-
-            if (e.getThreadId() == r.getThreadId()) {
-                sameThreadPrevWrite = e;
-                hasSameThreadPrevWrite = true;
-                continue;
-            }
-
-            if (e.getVarValue() == r.getVarValue() &&
-                !mhbClosure.happensBefore(r.getEventId(), e.getEventId())) {
-                feasibleWrites.push_back(e);
-            } else if (!mhbClosure.happensBefore(r.getEventId(),
-                                                 e.getEventId())) {
-                inFeasibleWrites.push_back(e);
-            }
-        }
-
-        feasibleWrites.erase(
-            std::remove_if(
-                feasibleWrites.begin(), feasibleWrites.end(),
-                [&feasibleWrites, r, this](Event w) {
-                    return std::any_of(
-                        feasibleWrites.begin(), feasibleWrites.end(),
-                        [w, r, this](Event w2) {
-                            return this->mhbClosure.happensBefore(
-                                       w.getEventId(), w2.getEventId()) &&
-                                   this->mhbClosure.happensBefore(
-                                       w2.getEventId(), r.getEventId());
-                        });
-                }),
-            feasibleWrites.end());
-
-        z3::expr_vector tmp_or(c);
-
-        if (hasSameThreadPrevWrite) {
-            /* has a write event on same thread */
-
-            if (sameThreadPrevWrite.getVarValue() == r.getVarValue()) {
-                /* case 1.1: the value read is same */
-
-                z3::expr_vector tmp_and(c);
-                for (Event& ifw : inFeasibleWrites) {
-                    if (mhbClosure.happensBefore(
-                            ifw.getEventId(), sameThreadPrevWrite.getEventId()))
-                        continue;
-
-                    /* ifw < fw || r < ifw */
-                    tmp_and.push_back(
-                        (varMap[ifw.getEventId() - 1] <
-                         varMap[sameThreadPrevWrite.getEventId() - 1]) ||
-                        (varMap[r.getEventId() - 1] <
-                         varMap[ifw.getEventId() - 1]));
-                }
-
-                if (tmp_and.size() > 0) tmp_or.push_back(z3::mk_and(tmp_and));
-
-                for (Event& fw : feasibleWrites) {
-                    if (mhbClosure.happensBefore(
-                            fw.getEventId(), sameThreadPrevWrite.getEventId()))
-                        continue;
-                    z3::expr_vector tmp_and2(c);
-
-                    /* fw < r */
-                    tmp_and2.push_back(varMap[fw.getEventId() - 1] <
-                                       varMap[r.getEventId() - 1]);
-                    for (Event& ifw : inFeasibleWrites) {
-                        if (mhbClosure.happensBefore(ifw.getEventId(),
-                                                     fw.getEventId()) ||
-                            mhbClosure.happensBefore(
-                                ifw.getEventId(),
-                                sameThreadPrevWrite.getEventId()))
-                            continue;
-
-                        /* My own optimization need to check for
-                         * validity */
-                        if (fw.getThreadId() == ifw.getThreadId() &&
-                            fw.getEventId() > ifw.getEventId())
-                            continue;
-
-                        /* ifw < fw || r < ifw */
-                        tmp_and2.push_back((varMap[ifw.getEventId() - 1] <
-                                            varMap[fw.getEventId() - 1]) ||
-                                           (varMap[r.getEventId() - 1] <
-                                            varMap[ifw.getEventId() - 1]));
-                    }
-                    if (tmp_and2.size() > 0)
-                        tmp_or.push_back(z3::mk_and(tmp_and2));
-                }
-
-                if (tmp_or.size() > 0)
-                    readCFConstraints.push_back(z3::mk_or(tmp_or));
-            } else {
-                /* case 1.2: the value read is different */
-                for (Event& fw : feasibleWrites) {
-                    if (mhbClosure.happensBefore(
-                            fw.getEventId(), sameThreadPrevWrite.getEventId()))
-                        continue;
-                    z3::expr_vector tmp_and2(c);
-
-                    /* fw < r */
-                    tmp_and2.push_back(varMap[fw.getEventId() - 1] <
-                                       varMap[r.getEventId() - 1]);
-
-                    /* sameThreadPrevWrite < fw */
-                    tmp_and2.push_back(
-                        varMap[sameThreadPrevWrite.getEventId() - 1] <
-                        varMap[fw.getEventId() - 1]);
-
-                    for (Event& ifw : inFeasibleWrites) {
-                        if (mhbClosure.happensBefore(ifw.getEventId(),
-                                                     fw.getEventId()) ||
-                            mhbClosure.happensBefore(
-                                ifw.getEventId(),
-                                sameThreadPrevWrite.getEventId()))
-                            continue;
-                        /* My own optimization need to check for
-                         * validity */
-                        if (fw.getThreadId() == ifw.getThreadId() &&
-                            fw.getEventId() > ifw.getEventId())
-                            continue;
-
-                        /* ifw < fw || r < ifw */
-                        tmp_and2.push_back((varMap[ifw.getEventId() - 1] <
-                                            varMap[fw.getEventId() - 1]) ||
-                                           (varMap[r.getEventId() - 1] <
-                                            varMap[ifw.getEventId() - 1]));
-                    }
-                    if (tmp_and2.size() > 0)
-                        tmp_or.push_back(z3::mk_and(tmp_and2));
-                }
-
-                if (tmp_or.size() > 0)
-                    readCFConstraints.push_back(z3::mk_or(tmp_or));
-            }
-        } else {
-            /* no write on the same var in the same thread */
-            Event sameThreadPrevRead;
-            bool hasSameThreadPrevRead = false;
-            for (Event& e : trace.getReadEvents(r.getVarId())) {
-                if (e.getThreadId() == r.getThreadId() &&
-                    e.getEventId() > r.getEventId())
-                    break;
-                if (e.getThreadId() == r.getThreadId()) {
-                    sameThreadPrevRead = e;
-                    hasSameThreadPrevRead = true;
-                }
-            }
-
-            if (hasSameThreadPrevRead &&
-                sameThreadPrevRead.getVarValue() != r.getVarValue()) {
-                /* case 2.1: sameThreadPrevRead that read a diff value is
-                 * present
-                 */
-                z3::expr_vector tmp_or(c);
-                for (Event& fw : feasibleWrites) {
-                    if (mhbClosure.happensBefore(
-                            fw.getEventId(), sameThreadPrevRead.getEventId()))
-                        continue;
-                    z3::expr_vector tmp_and(c);
-
-                    /* fw < r */
-                    tmp_and.push_back(varMap[fw.getEventId() - 1] <
-                                      varMap[r.getEventId() - 1]);
-
-                    /* sameThreadPrevRead < fw */
-                    tmp_and.push_back(
-                        varMap[sameThreadPrevRead.getEventId() - 1] <
-                        varMap[fw.getEventId() - 1]);
-
-                    for (Event& ifw : inFeasibleWrites) {
-                        if (mhbClosure.happensBefore(ifw.getEventId(),
-                                                     fw.getEventId()) ||
-                            mhbClosure.happensBefore(
-                                ifw.getEventId(),
-                                sameThreadPrevRead.getEventId()))
-                            continue;
-                        /* My own optimization need to check for
-                         * validity */
-                        if (fw.getThreadId() == ifw.getThreadId() &&
-                            fw.getEventId() > ifw.getEventId())
-                            continue;
-
-                        /* ifw < fw || r < ifw */
-                        tmp_and.push_back((varMap[ifw.getEventId() - 1] <
-                                           varMap[fw.getEventId() - 1]) ||
-                                          (varMap[r.getEventId() - 1] <
-                                           varMap[ifw.getEventId() - 1]));
-                    }
-                    if (tmp_and.size() > 0)
-                        tmp_or.push_back(z3::mk_and(tmp_and));
-                }
-                if (tmp_or.size() > 0)
-                    readCFConstraints.push_back(z3::mk_or(tmp_or));
-            } else {
-                /* case 2.2.1: sameThreadPrevRead is not present or read the
-                 * same value */
-                if (same_initial_val) {
-                    z3::expr_vector tmp(c);
-                    for (Event& ifw : inFeasibleWrites) {
-                        if (mhbClosure.happensBefore(ifw.getEventId(),
-                                                     r.getEventId()))
-                            continue;
-                        tmp.push_back(varMap[r.getEventId() - 1] <
-                                      varMap[ifw.getEventId() - 1]);
-                    }
-                    if (tmp.size() > 0)
-                        readCFConstraints.push_back(z3::mk_and(tmp));
-                } else {
-                    /* case 2.2.2: TODO */
-                    z3::expr_vector tmp_or(c);
-                    for (Event& fw : feasibleWrites) {
-                        z3::expr_vector tmp_and(c);
-
-                        /* fw < r */
-                        tmp_and.push_back(varMap[fw.getEventId() - 1] <
-                                          varMap[r.getEventId() - 1]);
-                        for (Event& ifw : inFeasibleWrites) {
-                            if (mhbClosure.happensBefore(ifw.getEventId(),
-                                                         fw.getEventId()))
-                                continue;
-                            /* My own optimization need to check for
-                             * validity */
-                            if (fw.getThreadId() == ifw.getThreadId() &&
-                                fw.getEventId() > ifw.getEventId())
-                                continue;
-
-                            /* ifw < fw || r < ifw */
-                            tmp_and.push_back((varMap[ifw.getEventId() - 1] <
-                                               varMap[fw.getEventId() - 1]) ||
-                                              (varMap[r.getEventId() - 1] <
-                                               varMap[ifw.getEventId() - 1]));
-                        }
-                        if (tmp_and.size() > 0)
-                            tmp_or.push_back(z3::mk_and(tmp_and));
-                    }
-                    if (tmp_or.size() > 0)
-                        readCFConstraints.push_back(z3::mk_or(tmp_or));
+                    lockConstraints.push_back((rel1_lt_acq2 ^ rel2_lt_acq1));
+                    // lockConstraints.push_back(((rel1_lt_acq2 || rel2_lt_acq1) && (!rel1_lt_acq2 || !rel2_lt_acq1)));
                 }
             }
         }
@@ -730,26 +468,9 @@ class Z3V4Model : public Model {
             }
         }
 
-        DEBUG_PRINT("reached an inconsistent state for " << r.getEventId());
+        // DEBUG_PRINT("reached an inconsistent state for " << r.getEventId());
         return c.bool_val(true);
     }
-
-    /*
-        1. init thread to last read event that needs its cf for this COP -> all
-       0 initially
-        2. have a queue of read events -> initially just the read event in the
-       threads right before our COP
-        3. for every read event processed:
-            a. update the thread to last read event map with the max(this read
-       ID, existing ID) b. for every write in feasible write (ensure no MHBs
-       relationship with our COP events)
-                -> add that write's thread's last read to the queue
-
-        augmentations for Trace class:
-        1. have every read's feasible and infeasible write maps
-        2. have every thread's writes's prev read map
-
-     */
 
     void filterCop() {
         for (const auto& [e1, e2] : trace.getCOPEvents()) {
@@ -779,15 +500,21 @@ class Z3V4Model : public Model {
             s.add(phiExpr(read, c) == readToPhiConc[phiConcOffset]);
         }
 
-        DEBUG_PRINT("Done building");
-
+        uint32_t raceIdx = 0;
         for (const auto& race_con : race_constraints) {
             z3::expr_vector test(c);
             test.push_back(race_con);
             if (s.check(test) == z3::sat) {
                 race_count++;
+                if (logWitness) {
+                    auto cop = filteredCopEvents[raceIdx];
+                    logger.logWitnessPrefix(s.get_model(), cop.first, cop.second);
+                }
             }
+            raceIdx++;
         }
+
+        DEBUG_PRINT(s.statistics());
 
         return race_count;
     }
@@ -811,8 +538,6 @@ class Z3V4Model : public Model {
             s.add(phiExpr(read, c) == readToPhiConc[phiConcOffset]);
         }
 
-        DEBUG_PRINT("Done building");
-
         int i = 0;
         for (const auto& race_con : race_constraints) {
             if (i >= maxNoOfCOP) break;
@@ -820,14 +545,52 @@ class Z3V4Model : public Model {
             test.push_back(race_con);
             if (s.check(test) == z3::sat) {
                 race_count++;
+                if (logWitness) {
+                    auto cop = filteredCopEvents[i];
+                    logger.logWitnessPrefix(s.get_model(), cop.first, cop.second);
+                }
             }
             i++;
         }
 
+        DEBUG_PRINT(s.statistics());
+
         return race_count;
     }
 
-    void getStatistics() {
-        DEBUG_PRINT("No of lock constraints: " << lockConstraints.size());
+    uint32_t solveForRace(uint32_t start_cop, uint32_t end_cop) {
+        s.add(mhbs);
+        s.add(lockConstraints);
+        uint32_t race_count = 0;
+
+        z3::expr_vector race_constraints(c);
+
+        for (const auto& [e1, e2] : filteredCopEvents) {
+            z3::expr e1_expr = varMap[e1.getEventId() - 1];
+            z3::expr e2_expr = varMap[e2.getEventId() - 1];
+
+            race_constraints.push_back(
+                (e1_expr == e2_expr & getPhiAbs(e1) & getPhiAbs(e2)));
+        }
+
+        for (const auto& [read, phiConcOffset] : readToPhiConcOffset) {
+            s.add(phiExpr(read, c) == readToPhiConc[phiConcOffset]);
+        }
+
+        for (int i = start_cop; i < end_cop; i++) {
+            z3::expr_vector test(c);
+            test.push_back(race_constraints[i]);
+            if (s.check(test) == z3::sat) {
+                race_count++;
+                if (logWitness) {
+                    auto cop = filteredCopEvents[i];
+                    logger.logWitnessPrefix(s.get_model(), cop.first, cop.second);
+                }
+            }
+        }
+
+        DEBUG_PRINT(s.statistics());
+
+        return race_count;
     }
 };

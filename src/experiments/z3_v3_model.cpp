@@ -138,7 +138,6 @@ class Z3V3Model : public Model {
     }
 
     void generateReadCFConstraints() {
-        uint32_t readCount = 0;
         for (auto& [threadId, events] : trace.getThreadToEventsMap()) {
             for (Event& r : events) {
                 if (r.getEventType() != Event::EventType::Read) continue;
@@ -366,7 +365,6 @@ class Z3V3Model : public Model {
                         /* case 2.2.1: sameThreadPrevRead is not present or read the same
                          * value */
                         if (same_initial_val) {
-                            readCount++;
                             z3::expr_vector tmp(c);
                             for (Event& ifw : inFeasibleWrites) {
                                 if (mhbClosure.happensBefore(ifw.getEventId(),
@@ -413,7 +411,6 @@ class Z3V3Model : public Model {
                 }
             }
         }
-        DEBUG_PRINT("Read count: " << readCount);
     }
 
     void filterCop() {
@@ -439,7 +436,6 @@ class Z3V3Model : public Model {
             z3::expr_vector test(c);
             test.push_back((e1_expr == e2_expr || e1_expr - e2_expr == 1 ||
                             e2_expr - e1_expr == 1));
-            // test.push_back(e1_expr == e2_expr);
             if (s.check(test) == z3::sat) {
                 if (logWitness) {
                     auto model = s.get_model();
@@ -465,9 +461,9 @@ class Z3V3Model : public Model {
             z3::expr e2_expr = varMap[e2.getEventId() - 1];
 
             z3::expr_vector test(c);
-            // test.push_back((e1_expr == e2_expr || e1_expr - e2_expr == 1 ||
-            //                 e2_expr - e1_expr == 1));
-            test.push_back(e1_expr == e2_expr);
+            test.push_back((e1_expr == e2_expr || e1_expr - e2_expr == 1 ||
+                            e2_expr - e1_expr == 1));
+            // test.push_back(e1_expr == e2_expr);
             if (s.check(test) == z3::sat) race_count++;
         }
         return race_count;

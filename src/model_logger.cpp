@@ -36,7 +36,12 @@ class ModelLogger {
         std::vector<std::pair<std::string, z3::expr>> modelValues;
         for (unsigned i = 0; i < m.size(); i++) {
             z3::func_decl v = m[i];
-            modelValues.push_back({v.name().str(), m.get_const_interp(v)});
+            if (!v.range().is_int()) continue;
+
+            z3::expr value = m.get_const_interp(v);
+            assert(value.is_int());
+
+            modelValues.push_back({v.name().str(), value});
         }
 
         std::sort(modelValues.begin(), modelValues.end(),
@@ -45,19 +50,19 @@ class ModelLogger {
                              b.second.get_numeral_int();
                   });
 
-        outputFile << "witness for: e" << e1.getEventId() << " - e"
-                   << e2.getEventId() << std::endl;
+        // outputFile << "witness for: e" << e1.getEventId() << " - e"
+        //            << e2.getEventId() << std::endl;
         DEBUG_PRINT("witness for: e" << e1.getEventId() << " - e"
                                     << e2.getEventId());
         for (const auto& [name, value] : modelValues) {
-            int i = std::stoi(name) - 1;
-            outputFile << value << ": " << name << " - "
-                       << events[i].prettyString() << std::endl;
+            int i = std::stoi(name.substr(2)) - 1;
+            // outputFile << value << ": " << name << " - "
+            //            << events[i].prettyString() << std::endl;
             DEBUG_PRINT(value << ": " << name << " - "
                               << events[i].prettyString());
         }
-        outputFile << "------------------------------------------------------"
-                   << std::endl;
+        // outputFile << "------------------------------------------------------"
+        //            << std::endl;
         DEBUG_PRINT("------------------------------------------------------");
     }
 
@@ -68,13 +73,20 @@ class ModelLogger {
         int e1Index, e2Index;
         for (unsigned i = 0; i < m.size(); i++) {
             z3::func_decl v = m[i];
-            if (v.name().str() == std::to_string(e1.getEventId())) {
-                e1Index = m.get_const_interp(v).get_numeral_int();
-            } else if (v.name().str() == std::to_string(e2.getEventId())) {
-                e2Index = m.get_const_interp(v).get_numeral_int();
+            if (!v.range().is_int()) continue;
+
+            z3::expr value = m.get_const_interp(v);
+            assert(value.is_int());
+
+            std::string name = v.name().str().substr(2);
+
+            if (name == std::to_string(e1.getEventId())) {
+                e1Index = value.get_numeral_int();
+            } else if (name == std::to_string(e2.getEventId())) {
+                e2Index = value.get_numeral_int();
             }
             modelValues.push_back(
-                {v.name().str(), m.get_const_interp(v).get_numeral_int()});
+                {name, value.get_numeral_int()});
         }
 
         std::sort(

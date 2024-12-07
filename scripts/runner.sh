@@ -1,8 +1,8 @@
 #!/bin/bash
 INPUT_DIR="$PWD/traces/formatted_traces"
-PROGRAM="$PWD/bin/rvpredict"
+PROGRAM="$PWD/bin/predictor"
 
-TIME_LIMIT=1500
+TIME_LIMIT=600
 
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <output_file>"
@@ -12,10 +12,38 @@ fi
 OUTPUT_FILE="$PWD/output/$1.txt"
 > "$OUTPUT_FILE"
 
-LONG_TRACES=("cryptorsa" "linkedlist" "lusearch" "xalan" "bufwriter" "moldyn" "readerswriters" "ftpserver" "derby" "jigsaw")
+LONG_TRACES=(
+    "cryptorsa" 
+    "linkedlist" 
+    "lusearch" 
+    "xalan" 
+    "bufwriter" 
+    "moldyn" 
+    "readerswriters" 
+    "ftpserver" 
+    "derby" 
+    "jigsaw"
+)
 
+# Under 2000 events
+SHORT_TRACES=(
+    "account" 
+    "airlinetickets" 
+    "array" 
+    "boundedbuffer" 
+    "bubblesort" 
+    "clean" 
+    "critical" 
+    "lang" 
+    "mergesort" 
+    "pingpong" 
+    "producerconsumer" 
+    "raytracer" 
+    "twostage" 
+    "wronglock"
+)
 
-should_skip() {
+is_long_trace() {
     local file_basename=$1
     for long_trace in "${LONG_TRACES[@]}"; do
         if [[ "$file_basename" == *"$long_trace" ]]; then
@@ -25,17 +53,27 @@ should_skip() {
     return 1
 }
 
+is_short_trace() {
+    local file_basename=$1
+    for short_trace in "${SHORT_TRACES[@]}"; do
+        if [[ "$file_basename" == *"$short_trace" ]]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
 for FILE in "$INPUT_DIR"/*; do
     BASENAME=$(basename "$FILE")
 
-    if should_skip "$BASENAME"; then
+    if ! is_short_trace "$BASENAME"; then
         continue
     fi
 
-    for ((i = 0 ; i < 5 ; i++)); do
+    for ((i = 0 ; i < 3 ; i++)); do
         echo "Processing: $BASENAME" >> "$OUTPUT_FILE"
     
-        timeout $TIME_LIMIT time -v "$PROGRAM" -f "$FILE" -c 1 >> "$OUTPUT_FILE" 2>&1
+        timeout $TIME_LIMIT time -v "$PROGRAM" -f "$FILE" >> "$OUTPUT_FILE" 2>&1
         EXIT_CODE=$?
 
         if [ $EXIT_CODE -eq 124 ]; then

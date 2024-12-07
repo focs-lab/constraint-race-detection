@@ -19,12 +19,12 @@ STD_TRACE_DIR=$(TRACE_DIR)/STD-Format
 HUMANREADABLE_TRACE_DIR=$(TRACE_DIR)/human_readable_traces
 FORMATTED_TRACE_DIR=$(TRACE_DIR)/formatted_traces
 
-TARGET = $(BIN_DIR)/rvpredict
+TARGET = $(BIN_DIR)/predictor
 TRACE_GENERATOR = $(BIN_DIR)/trace_generator
 
-DEPS = $(SRC_DIR)/event.cpp $(SRC_DIR)/trace.cpp $(SRC_DIR)/model.cpp $(SRC_DIR)/custom_maximal_casual_model.cpp $(SRC_DIR)/expr.cpp $(SRC_DIR)/z3_maximal_casual_model.cpp $(SRC_DIR)/partial_maximal_casual_model.cpp
+DEPS = $(SRC_DIR)/event.cpp $(SRC_DIR)/trace.cpp $(SRC_DIR)/constraint_model.cpp
 DEPS += $(SRC_DIR)/model_logger.cpp
-SRC = $(SRC_DIR)/rvpredict.cpp
+SRC = $(SRC_DIR)/predictor.cpp
 TRACE_GENERATOR_SRC = $(SRC_DIR)/trace_generator.cpp
 
 STD_CONVERTER=scripts/convert.py

@@ -2,3 +2,4 @@ bin/
 traces/
 r0*/
 output/
+.vscode/
