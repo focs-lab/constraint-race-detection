@@ -1,25 +1,26 @@
-#pragma once
 #include <unordered_map>
+#include <vector>
 
-#include "trace.cpp"
+#include "event.h"
+#include "trace.h"
 
-class LockSetEngine {
+class LocksetEngine {
    private:
     std::unordered_map<uint32_t,
                        std::unordered_map<uint32_t, std::vector<LockRegion>>>
-        lock_id_to_thread_id_to_lock_region;
+        lock_id_to_thread_id_to_lock_region_;
 
    public:
-    LockSetEngine(
+    LocksetEngine(
         std::unordered_map<
             uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
-            lock_id_to_thread_id_to_lock_region_)
-        : lock_id_to_thread_id_to_lock_region(
-              lock_id_to_thread_id_to_lock_region_) {}
+            lock_id_to_thread_id_to_lock_region)
+        : lock_id_to_thread_id_to_lock_region_(
+              lock_id_to_thread_id_to_lock_region) {}
 
-    bool hasCommonLock(const Event& e1, const Event& e2) {
+    bool hasCommonLock(const Event& e1, const Event& e2) const {
         for (const auto& [lock_id, thread_id_to_lock_region] :
-             lock_id_to_thread_id_to_lock_region) {
+             lock_id_to_thread_id_to_lock_region_) {
             if (thread_id_to_lock_region.find(e1.getThreadId()) ==
                     thread_id_to_lock_region.end() ||
                 thread_id_to_lock_region.find(e2.getThreadId()) ==

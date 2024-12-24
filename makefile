@@ -1,77 +1,60 @@
 CXX = g++
 CXXFLAGS = -std=c++17
 
-DEBUGFLAGS = -DDEBUG
-
 Z3_INCLUDE = -I/opt/homebrew/opt/z3/include
 Z3_LIB = -L/opt/homebrew/opt/z3/lib -lz3
 
 CUSTOM_Z3_INCLUDE = -I/Users/rama/Desktop/FYP/z3/src/api/c++ -I/Users/rama/Desktop/FYP/z3/src/api
 CUSTOM_Z3_LIB = -L/Users/rama/Desktop/FYP/z3/build -lz3
 
-# export DYLD_LIBRARY_PATH=/Users/rama/Desktop/FYP/z3/build:$DYLD_LIBRARY_PATH
+GTEST_INCLUDE = -I/opt/homebrew/opt/googletest/include
+GTEST_LIB = -L/opt/homebrew/opt/googletest/lib -lgtest -lgtest_main -pthread
 
-BIN_DIR=bin
-SRC_DIR=src
+TARGET = predictor
+TEST_TARGET = run_tests
 
-TRACE_DIR=traces
-STD_TRACE_DIR=$(TRACE_DIR)/STD-Format
-HUMANREADABLE_TRACE_DIR=$(TRACE_DIR)/human_readable_traces
-FORMATTED_TRACE_DIR=$(TRACE_DIR)/formatted_traces
+# Directories
+SRC_DIR = src
+OBJ_DIR = obj
+TEST_DIR = tests
+TEST_OBJ_DIR = obj/tests
 
-TARGET = $(BIN_DIR)/predictor
-TRACE_GENERATOR = $(BIN_DIR)/trace_generator
+# Source and object files
+SRCS = $(wildcard $(SRC_DIR)/*.cpp)
+OBJS = $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRCS))
 
-DEPS = $(SRC_DIR)/event.cpp $(SRC_DIR)/trace.cpp $(SRC_DIR)/constraint_model.cpp
-DEPS += $(SRC_DIR)/model_logger.cpp
-SRC = $(SRC_DIR)/predictor.cpp
-TRACE_GENERATOR_SRC = $(SRC_DIR)/trace_generator.cpp
+TEST_SRCS = $(wildcard $(TEST_DIR)/*.cpp)
+TEST_OBJS = $(patsubst $(TEST_DIR)/%.cpp, $(TEST_OBJ_DIR)/%.o, $(TEST_SRCS))
 
-STD_CONVERTER=scripts/convert.py
+# Header files
+HEADERS = $(wildcard $(SRC_DIR)/*.h)
 
-readable_traces = $(shell ls $(HUMANREADABLE_TRACE_DIR)/*.txt)
+# Default rule to build the target
+all: $(TARGET)
 
-all: $(TARGET) $(TRACE_GENERATOR)
+# Rule to link the object files into the final executable
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) $(Z3_LIB) -o $@ $(OBJS)
 
-$(TARGET): $(SRC) $(DEPS)
-	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(Z3_INCLUDE) -o $(TARGET) $(SRC) $(Z3_LIB)
+# Rule to compile source files into object files
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(HEADERS)
+	mkdir -p $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(Z3_INCLUDE) -c $< -o $@
 
-$(TRACE_GENERATOR): $(TRACE_GENERATOR_SRC)
-	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TRACE_GENERATOR) $(TRACE_GENERATOR_SRC)
+# Rule to compile test files into object files
+$(TEST_OBJ_DIR)/%.o: $(TEST_DIR)/%.cpp $(HEADERS)
+	mkdir -p $(TEST_OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(Z3_INCLUDE) $(GTEST_INCLUDE) -c $< -o $@
 
-debug: $(SRC) $(DEPS)
-	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(Z3_INCLUDE) $(DEBUGFLAGS) -o $(TARGET) $(SRC) $(Z3_LIB)
+# Rule to build the test executable
+$(TEST_TARGET): $(TEST_OBJS)
+	$(CXX) $(CXXFLAGS) $(Z3_LIB) $(GTEST_LIB) -o $@ $(TEST_OBJS)
 
-custom_debug: $(SRC) $(DEPS)
-	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(CUSTOM_Z3_INCLUDE) $(DEBUGFLAGS) -o $(TARGET) $(SRC) $(CUSTOM_Z3_LIB)
+# Rule to run tests
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
+	rm -rf $(TEST_OBJ_DIR) $(TEST_TARGET)
 
-gen_from_std_trace:
-	mkdir -p $(HUMANREADABLE_TRACE_DIR)
-	@for file in $(shell ls $(STD_TRACE_DIR)/*.std); do \
-		echo "Generating human readable trace for $$file..."; \
-		python $(STD_CONVERTER) $$file $(HUMANREADABLE_TRACE_DIR);\
-	done
-
-gen_single_trace: $(TRACE_GENERATOR)
-	mkdir -p $(FORMATTED_TRACE_DIR)
-	$(TRACE_GENERATOR) $(HUMANREADABLE_TRACE_DIR)/$(file).txt $(FORMATTED_TRACE_DIR)
-
-gen_traces: $(TRACE_GENERATOR)
-	mkdir -p $(FORMATTED_TRACE_DIR)
-	@for file in $(readable_traces); do \
-		echo "Generating trace for $$file..."; \
-		$(TRACE_GENERATOR) $$file $(FORMATTED_TRACE_DIR);\
-	done
-
-run: $(TARGET)
-	@$(TARGET) -f $(FORMATTED_TRACE_DIR)/$(file) --log_witness
-
-gen_and_run: gen_single_trace run
-
-# Clean target to remove the compiled files
+# Clean rule to remove generated files
 clean:
-	rm -f $(TARGET) $(TRACE_GENERATOR) $(TARGET_STRICT)
+	rm -rf $(OBJ_DIR) $(TARGET)

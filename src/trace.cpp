@@ -1,319 +1,184 @@
-#pragma once
+#include "trace.h"
 
 #include <fstream>
-#include <unordered_map>
-#include <utility>
-#include <vector>
 
-#include "event.cpp"
+Trace Trace::createTrace(const std::vector<uint64_t>& raw_events) {
+    std::vector<Event> all_events;
 
-class LockRegion {
-   private:
-    uint32_t lockId;
-    uint32_t acqEvent;
-    uint32_t relEvent;
-    uint32_t threadId;
+    std::vector<std::pair<Event, Event>> cops;
+    std::vector<std::pair<Event, Event>> fork_begin_pairs;
+    std::vector<std::pair<Event, Event>> end_join_pairs;
 
-   public:
-    LockRegion(uint32_t lockId, uint32_t acqEvent, uint32_t relEvent,
-               uint32_t threadId)
-        : lockId(lockId),
-          acqEvent(acqEvent),
-          relEvent(relEvent),
-          threadId(threadId) {}
+    std::unordered_map<uint32_t, Thread> thread_id_to_thread;
+    std::unordered_map<uint32_t, Variable> var_id_to_variable;
+    std::unordered_map<uint32_t, std::vector<LockRegion>>
+        lock_id_to_lock_region;
 
-    uint32_t getAcqEventId() const { return acqEvent; }
+    // start from event id 1 because 0 is reserved for null event
+    uint32_t event_id = 1;
 
-    uint32_t getRelEventId() const { return relEvent; }
+    // auxiliary structures to help in the construction of the trace
+    std::unordered_map<uint32_t, Event> forks;
+    std::unordered_map<uint32_t, Event> ends;
+    std::unordered_map<uint32_t, Event> last_acquire;
 
-    bool containsEvent(const Event& e) const {
-        return e.getThreadId() == threadId && e.getEventId() >= acqEvent &&
-               e.getEventId() <= relEvent;
+    for (uint64_t raw_event : raw_events) {
+        Event e(raw_event, event_id++);
+
+        all_events.push_back(e);
+
+        if (thread_id_to_thread.find(e.getThreadId()) ==
+            thread_id_to_thread.end()) {
+            thread_id_to_thread[e.getThreadId()] = Thread(e.getThreadId());
+        }
+
+        thread_id_to_thread[e.getThreadId()].addEvent(e);
+
+        switch (e.getEventType()) {
+            case Event::EventType::Fork:
+                forks[e.getTargetId()] = e;
+                break;
+            case Event::EventType::Begin:
+                fork_begin_pairs.emplace_back(forks[e.getThreadId()], e);
+                break;
+            case Event::EventType::End:
+                ends[e.getThreadId()] = e;
+                break;
+            case Event::EventType::Join:
+                end_join_pairs.emplace_back(ends[e.getTargetId()], e);
+                break;
+            case Event::EventType::Acquire:
+                last_acquire[e.getTargetId()] = e;
+                break;
+            case Event::EventType::Release:
+                lock_id_to_lock_region[e.getTargetId()].emplace_back(
+                    last_acquire[e.getTargetId()], e);
+                break;
+            case Event::EventType::Read:
+                if (var_id_to_variable.find(e.getTargetId()) ==
+                    var_id_to_variable.end()) {
+                    var_id_to_variable[e.getTargetId()] =
+                        Variable(e.getTargetId());
+                }
+                var_id_to_variable[e.getTargetId()].addEvent(e);
+                break;
+            case Event::EventType::Write:
+                if (var_id_to_variable.find(e.getTargetId()) ==
+                    var_id_to_variable.end()) {
+                    var_id_to_variable[e.getTargetId()] =
+                        Variable(e.getTargetId());
+                }
+                var_id_to_variable[e.getTargetId()].addEvent(e);
+                break;
+            default:
+                break;
+        }
     }
-};
 
-class Trace {
-   private:
-    std::vector<Event> raw_events;
-    std::unordered_map<uint32_t, std::vector<Event>> thread_to_events_map;
-    std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
-        lock_pairs;
-    std::unordered_map<uint32_t, std::vector<Event>> reads;
-    std::unordered_map<uint32_t, std::vector<Event>> writes;
-    std::vector<std::pair<uint32_t, uint32_t>> fork_begin_pairs;
-    std::vector<std::pair<uint32_t, uint32_t>> join_end_pairs;
+    return Trace(all_events, fork_begin_pairs, end_join_pairs,
+                 thread_id_to_thread, var_id_to_variable,
+                 lock_id_to_lock_region);
+}
+
+Trace Trace::fromFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::binary);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Could not open file: " + filename);
+    }
+
+    file.seekg(0, std::ios::end);
+    size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    if (file_size % sizeof(uint64_t) != 0) {
+        throw std::runtime_error("Invalid file size: " + filename);
+    }
+
+    std::vector<uint64_t> raw_events(file_size / sizeof(uint64_t));
+    file.read(reinterpret_cast<char*>(raw_events.data()),
+              file_size);  // safe to do this reinterpret_cast because we know
+                           // the file is multiple of 64 bits and if the events
+                           // are wrong, any way we read in the data will lead
+                           // to invalid events which we can handle later
+
+    file.close();
+
+    return createTrace(raw_events);
+}
+
+std::vector<Event> Trace::getAllEvents() const { return all_events_; }
+
+std::vector<std::pair<Event, Event>> Trace::getCOPs() const {
     std::vector<std::pair<Event, Event>> cops;
 
+    for (auto& [_, var] : var_id_to_variable_) {
+        std::vector<std::pair<Event, Event>> var_cops = var.getCOP();
+        cops.insert(cops.end(), var_cops.begin(), var_cops.end());
+    }
+
+    return cops;
+}
+
+std::vector<std::pair<Event, Event>> Trace::getForkBeginPairs() const {
+    return fork_begin_pairs_;
+}
+
+std::vector<std::pair<Event, Event>> Trace::getEndJoinPairs() const {
+    return end_join_pairs_;
+}
+
+std::unordered_map<uint32_t, std::vector<LockRegion>> Trace::getLockRegions()
+    const {
+    return lock_id_to_lock_region_;
+}
+
+std::unordered_map<uint32_t,
+                   std::unordered_map<uint32_t, std::vector<LockRegion>>>
+Trace::getThreadIdToLockIdToLockRegions() const {
     std::unordered_map<uint32_t,
                        std::unordered_map<uint32_t, std::vector<LockRegion>>>
-        lock_regions;
-
-    std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
-        thread_to_event_to_last_read;
-
-    std::unordered_map<uint32_t, std::vector<Event>> reads_to_feasible_writes;
-    std::unordered_map<uint32_t, std::vector<Event>> reads_to_infeasible_writes;
-    std::unordered_map<uint32_t, Event> same_thread_same_var_prev_write;
-
-    Trace(
-        std::vector<Event> raw_events_,
-        std::unordered_map<uint32_t, std::vector<Event>> thread_to_events_map_,
-        std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
-            lock_pairs_,
-        std::unordered_map<
-            uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
-            lock_regions_,
-        std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
-            thread_to_event_to_last_read_,
-        std::unordered_map<uint32_t, std::vector<Event>> reads_,
-        std::unordered_map<uint32_t, std::vector<Event>> writes_,
-        std::vector<std::pair<uint32_t, uint32_t>> fork_begin_pairs_,
-        std::vector<std::pair<uint32_t, uint32_t>> join_end_pairs_,
-        std::vector<std::pair<Event, Event>> cops_)
-        : raw_events(raw_events_),
-          thread_to_events_map(thread_to_events_map_),
-          lock_pairs(lock_pairs_),
-          lock_regions(lock_regions_),
-          thread_to_event_to_last_read(thread_to_event_to_last_read_),
-          reads(reads_),
-          writes(writes_),
-          fork_begin_pairs(fork_begin_pairs_),
-          join_end_pairs(join_end_pairs_),
-          cops(cops_) {
-            generateFeasibleWrites();
-          }
-
-    void generateFeasibleWrites() {
-        for (const auto& [varId, readVec] : reads) {
-            for (const Event& r : readVec) {
-                for (const Event& e : getWriteEvents(varId)) {
-                    if (r.getThreadId() == e.getThreadId() && e.getEventId() > r.getEventId())
-                        continue;
-                    
-                    if (r.getThreadId() == e.getThreadId()) {
-                        same_thread_same_var_prev_write[r.getEventId()] = e;
-                        continue;
-                    }
-
-                    if (e.getVarValue() == r.getVarValue()) {
-                        reads_to_feasible_writes[r.getEventId()].push_back(e);
-                    } else {
-                        reads_to_infeasible_writes[r.getEventId()].push_back(e);
-                    }
-                }
-            }
+        res;
+    for (const auto& [lockId, lockRegions] : lock_id_to_lock_region_) {
+        for (const LockRegion& lockRegion : lockRegions) {
+            res[lockRegion.getRegionThreadId()][lockId].push_back(lockRegion);
         }
     }
+    return res;
+}
 
-   public:
-    static Trace* fromLog(const std::string& filename) {
-        std::ifstream inputFile(filename);
-        std::vector<Event> raw_events;
-        std::unordered_map<uint32_t, std::vector<Event>> thread_to_events_map;
-        std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
-            lock_pairs;
-        std::unordered_map<uint32_t, Event> last_acquire_event;
-        std::unordered_map<uint32_t, std::vector<Event>> reads;
-        std::unordered_map<uint32_t, std::vector<Event>> writes;
-        std::unordered_map<uint32_t, uint32_t> forks;
-        std::unordered_map<uint32_t, uint32_t> ends;
-        std::vector<std::pair<uint32_t, uint32_t>> fork_begin_pairs;
-        std::vector<std::pair<uint32_t, uint32_t>> join_end_pairs;
-        std::vector<std::pair<Event, Event>> cops;
-
-        std::unordered_map<
-            uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
-            lock_regions;
-        std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
-            lockId_to_threadId_to_last_acquire_event;
-
-        std::unordered_map<uint32_t, Event> prev_read_in_thread;
-        std::unordered_map<uint32_t, std::unordered_map<uint32_t, Event>>
-            thread_to_event_to_last_read;
-
-        if (!inputFile.is_open()) {
-            std::cerr << "Error opening file: " << filename << std::endl;
-            return nullptr;
-        }
-
-        uint64_t rawEvent;
-
-        /* We will start event IDs from 1, this way we can use event ID 0 to
-         * represent an null event */
-        uint32_t event_no = 1;
-        while (inputFile.read(reinterpret_cast<char*>(&rawEvent),
-                              sizeof(rawEvent))) {
-            try {
-                Event e = Event(rawEvent, event_no++);
-
-                raw_events.push_back(e);
-                thread_to_events_map[e.getThreadId()].push_back(e);
-
-                switch (e.getEventType()) {
-                    case Event::EventType::Acquire: {
-                        last_acquire_event[e.getVarId()] = e;
-                        lockId_to_threadId_to_last_acquire_event
-                            [e.getVarId()][e.getThreadId()] = e;
-                        break;
-                    }
-                    case Event::EventType::Release: {
-                        lock_pairs[e.getVarId()].push_back(
-                            {last_acquire_event[e.getVarId()], e});
-                        Event last_acquire =
-                            lockId_to_threadId_to_last_acquire_event
-                                [e.getVarId()][e.getThreadId()];
-                        lock_regions[e.getVarId()][e.getThreadId()].push_back(
-                            LockRegion(e.getVarId(), last_acquire.getEventId(),
-                                       e.getEventId(), e.getThreadId()));
-                        break;
-                    }
-                    case Event::EventType::Read:
-                        reads[e.getVarId()].push_back(e);
-                        if (prev_read_in_thread.find(e.getThreadId()) !=
-                            prev_read_in_thread.end()) {
-                            thread_to_event_to_last_read
-                                [e.getThreadId()][e.getEventId()] =
-                                    prev_read_in_thread[e.getThreadId()];
-                        } else {
-                            thread_to_event_to_last_read[e.getThreadId()]
-                                                        [e.getEventId()] =
-                                                            Event();
-                        }
-                        prev_read_in_thread[e.getThreadId()] = e;
-                        break;
-                    case Event::EventType::Write:
-                        writes[e.getVarId()].push_back(e);
-                        if (prev_read_in_thread.find(e.getThreadId()) !=
-                            prev_read_in_thread.end()) {
-                            thread_to_event_to_last_read
-                                [e.getThreadId()][e.getEventId()] =
-                                    prev_read_in_thread[e.getThreadId()];
-                        } else {
-                            thread_to_event_to_last_read[e.getThreadId()]
-                                                        [e.getEventId()] =
-                                                            Event();
-                        }
-                        break;
-                    case Event::EventType::Fork:
-                        forks[e.getVarId()] = e.getEventId();
-                        break;
-                    case Event::EventType::Begin:
-                        fork_begin_pairs.push_back(
-                            {forks[e.getThreadId()], e.getEventId()});
-                        break;
-                    case Event::EventType::End:
-                        ends[e.getThreadId()] = e.getEventId();
-                        break;
-                    case Event::EventType::Join:
-                        join_end_pairs.push_back(
-                            {ends[e.getVarId()], e.getEventId()});
-                        break;
-                    default:
-                        break;
-                }
-            } catch (const std::exception& e) {
-                std::cerr << "Error parsing line: " << e.what() << " - "
-                          << e.what() << std::endl;
-                return nullptr;
-            }
-        }
-
-        inputFile.close();
-
-        for (const auto& [varId, writeEvents] : writes) {
-            for (int i = 0; i < writeEvents.size(); ++i) {
-                Event writeEvent = writeEvents[i];
-                for (int j = i + 1; j < writeEvents.size(); ++j) {
-                    Event writeEvent2 = writeEvents[j];
-                    if (writeEvent.getThreadId() != writeEvent2.getThreadId())
-                        cops.push_back({writeEvent, writeEvent2});
-                }
-                for (int j = 0; j < reads[varId].size(); ++j) {
-                    Event readEvent = reads[varId][j];
-                    if (readEvent.getThreadId() != writeEvent.getThreadId())
-                        cops.push_back({writeEvent, readEvent});
-                }
-            }
-        }
-
-        return new Trace(raw_events, thread_to_events_map, lock_pairs,
-                         lock_regions, thread_to_event_to_last_read, reads,
-                         writes, fork_begin_pairs, join_end_pairs, cops);
+std::vector<Thread> Trace::getThreads() const {
+    std::vector<Thread> threads;
+    for (const auto& [_, thread] : thread_id_to_thread_) {
+        threads.push_back(thread);
     }
+    return threads;
+}
 
-    std::vector<Event> getAllEvents() const { return raw_events; }
+std::vector<Event> Trace::getGoodWritesForRead(const Event& read) const {
+    assert(var_id_to_variable_.find(read.getTargetId()) !=
+           var_id_to_variable_.end());
+    return var_id_to_variable_.at(read.getTargetId()).getGoodWrites(read);
+}
 
-    std::unordered_map<uint32_t, std::vector<Event>> getThreadToEventsMap()
-        const {
-        return thread_to_events_map;
-    }
+std::vector<Event> Trace::getBadWritesForRead(const Event& read) const {
+    assert(var_id_to_variable_.find(read.getTargetId()) !=
+           var_id_to_variable_.end());
+    return var_id_to_variable_.at(read.getTargetId()).getBadWrites(read);
+}
 
-    std::vector<std::pair<uint32_t, uint32_t>> getForkBeginPairs() const {
-        return fork_begin_pairs;
-    }
+Event Trace::getPrevReadInThread(const Event& e) const {
+    return thread_id_to_thread_.at(e.getThreadId()).getPrevRead(e);
+}
 
-    std::vector<std::pair<uint32_t, uint32_t>> getJoinEndPairs() const {
-        return join_end_pairs;
-    }
+Event Trace::getSameThreadSameVarPrevWrite(const Event& e) const {
+    return var_id_to_variable_.at(e.getTargetId()).getPrevWriteInThread(e);
+}
 
-    std::unordered_map<uint32_t, std::vector<std::pair<Event, Event>>>
-    getLockPairs() const {
-        return lock_pairs;
-    }
+Event Trace::getPrevDiffReadInThread(const Event& e) const {
+    return var_id_to_variable_.at(e.getTargetId()).getPrevDiffReadInThread(e);
+}
 
-    std::vector<std::pair<Event, Event>> getCOPEvents() const { return cops; }
-
-    std::vector<Event> getWriteEvents(uint32_t varId) const {
-        if (writes.find(varId) == writes.end()) return {};
-        return writes.at(varId);
-    }
-
-    std::vector<Event> getReadEvents(uint32_t varId) const {
-        if (reads.find(varId) == reads.end()) return {};
-        return reads.at(varId);
-    }
-
-    std::vector<Event> getEventsFromThread(uint32_t threadId) const {
-        if (thread_to_events_map.find(threadId) == thread_to_events_map.end())
-            return {};
-        return thread_to_events_map.at(threadId);
-    }
-
-    std::unordered_map<uint32_t,
-                       std::unordered_map<uint32_t, std::vector<LockRegion>>>
-    getLockRegions() const {
-        return lock_regions;
-    }
-
-    Event getPrevReadInThread(Event e) const {
-        auto thread_it = thread_to_event_to_last_read.find(e.getThreadId());
-        if (thread_it == thread_to_event_to_last_read.end()) {
-            return Event();
-        }
-
-        auto event_it = thread_it->second.find(e.getEventId());
-        if (event_it == thread_it->second.end()) {
-            return Event();
-        }
-
-        return event_it->second;
-    }
-
-    std::vector<Event> getFeasibleWrites(Event& r) const {
-        if (reads_to_feasible_writes.find(r.getEventId()) == reads_to_feasible_writes.end()) 
-            return {};
-        return reads_to_feasible_writes.at(r.getEventId());
-    } 
-
-    std::vector<Event> getInFeasibleWrites(Event& r) const {
-        if (reads_to_infeasible_writes.find(r.getEventId()) == reads_to_infeasible_writes.end()) 
-            return {};
-        return reads_to_infeasible_writes.at(r.getEventId());
-    } 
-
-    Event getSameThreadSameVarPrevWrite(Event& r) const {
-        if (same_thread_same_var_prev_write.find(r.getEventId()) == same_thread_same_var_prev_write.end()) 
-            return Event();
-        return same_thread_same_var_prev_write.at(r.getEventId());
-    }
-};
+bool Trace::hasSameInitialValue(const Event& e) const {
+    return var_id_to_variable_.at(e.getTargetId()).sameInitialValue(e);
+}

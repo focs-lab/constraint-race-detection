@@ -1,5 +1,4 @@
-bin/
-traces/
-r0*/
-output/
+obj/
+predictor
+run_tests
 .vscode/
