@@ -80,7 +80,7 @@ Trace Trace::createTrace(const std::vector<uint64_t>& raw_events) {
                  lock_id_to_lock_region);
 }
 
-Trace Trace::fromFile(const std::string& filename) {
+Trace Trace::fromBinaryFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::binary);
 
     if (!file.is_open()) {
@@ -103,6 +103,69 @@ Trace Trace::fromFile(const std::string& filename) {
                            // to invalid events which we can handle later
 
     file.close();
+
+    return createTrace(raw_events);
+}
+
+Trace Trace::fromTextFile(const std::string& filename) {
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Could not open file: " + filename);
+    }
+
+    std::unordered_map<std::string, Event::EventType> eventTypeMapping = {
+    {"read", Event::EventType::Read},   {"write", Event::EventType::Write},
+    {"acq", Event::EventType::Acquire}, {"rel", Event::EventType::Release},
+    {"begin", Event::EventType::Begin}, {"end", Event::EventType::End},
+    {"fork", Event::EventType::Fork},   {"join", Event::EventType::Join}};
+
+    /* Global Trace information */
+    std::unordered_map<std::string, uint32_t> varNameMapping;
+    uint32_t availVarId = 0;
+    std::unordered_map<std::string, uint32_t> lockNameMapping;
+    uint32_t availLockId = 0;
+
+    std::vector<uint64_t> raw_events;
+
+    std::string line;
+    while(std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string EventTypeStr, varName;
+        uint32_t threadId, varValue, varId;
+
+        if (!(iss >> EventTypeStr >> threadId >> varName >> varValue)) {
+            throw std::runtime_error("Invalid event: " + line);
+        }
+
+        std::transform(EventTypeStr.begin(), EventTypeStr.end(), EventTypeStr.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+
+        if (eventTypeMapping.find(EventTypeStr) == eventTypeMapping.end()) {
+            throw std::runtime_error("Invalid event type: " + EventTypeStr);
+        }
+
+        Event::EventType eventType = eventTypeMapping[EventTypeStr];
+
+        if (eventType == Event::EventType::Read || eventType == Event::EventType::Write) {
+            if (varNameMapping.find(varName) == varNameMapping.end()) {
+                varNameMapping[varName] = availVarId++;
+            }
+            varId = varNameMapping[varName];
+        } else if (eventType == Event::EventType::Acquire || eventType == Event::EventType::Release) {
+            if (lockNameMapping.find(varName) == lockNameMapping.end()) {
+                lockNameMapping[varName] = availLockId++;
+            }
+            varId = lockNameMapping[varName];
+        } else if (eventType == Event::EventType::Fork || eventType == Event::EventType::Join) {
+            varId = std::stoul(varName);
+        } else {
+            varId = 0;
+        }
+
+        raw_events.push_back(Event::createRawEvent(eventType, threadId, varId, varValue));
+    }
 
     return createTrace(raw_events);
 }

@@ -1,16 +1,21 @@
 #include <iostream>
 
+#include "BSlogger.hpp"
 #include "casual_model.h"
 #include "cmd_argument_parser.cpp"
 #include "trace.h"
 
 int main(int argc, char* argv[]) {
     try {
+        LOG_INIT_COUT();
+
         auto start = std::chrono::high_resolution_clock::now();
 
         Arguments args = Arguments::fromArgs(argc, argv);
 
-        Trace trace = Trace::fromFile(args.executionTrace);
+        Trace trace = args.binaryFormat
+                          ? Trace::fromBinaryFile(args.executionTrace)
+                          : Trace::fromTextFile(args.executionTrace);
 
         CasualModel model(trace);
 
@@ -18,12 +23,12 @@ int main(int argc, char* argv[]) {
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        std::cout << "No of races predicted: " << race_count << std::endl;
-        std::cout << "Time taken: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(
-                         end - start)
-                         .count()
-                  << "ms" << std::endl;
+        log(LOG_INFO) << "No of races predicted: " << race_count << "\n";
+        log(LOG_INFO) << "Time taken: "
+                      << std::chrono::duration_cast<std::chrono::milliseconds>(
+                             end - start)
+                             .count()
+                      << "ms" << "\n";
 
         return 0;
     } catch (std::exception& e) {

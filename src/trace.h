@@ -40,7 +40,8 @@ class Trace {
 
    public:
     static Trace createTrace(const std::vector<uint64_t>& raw_events);
-    static Trace fromFile(const std::string& filename);
+    static Trace fromBinaryFile(const std::string& filename);
+    static Trace fromTextFile(const std::string& filename);
 
     std::vector<Event> getAllEvents() const;
     std::vector<Event> getGoodWritesForRead(const Event& read) const;

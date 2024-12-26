@@ -54,6 +54,14 @@ class Event {
         return e.getEventId() == 0;
     }
 
+    static uint64_t createRawEvent(EventType event_type, uint32_t thread_id,
+                                   uint32_t target_id, uint32_t target_value) {
+        return (static_cast<uint64_t>(event_type) << 60) |
+               (static_cast<uint64_t>(thread_id) << 52) |
+               (static_cast<uint64_t>(target_id) << 32) |
+               static_cast<uint64_t>(target_value);
+    }
+
     bool operator==(const Event& other) const {
         return raw_event_ == other.raw_event_ && event_id_ == other.event_id_;
     }

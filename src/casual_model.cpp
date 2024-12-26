@@ -1,7 +1,6 @@
 #include "casual_model.h"
 
 void CasualModel::filterCOPs() {
-    std::cout << "Total no of COPs: " << trace_.getCOPs().size() << std::endl;
     for (const auto& [e1, e2] : trace_.getCOPs()) {
         if (mhb_closure_.happensBefore(e1, e2) ||
             mhb_closure_.happensBefore(e2, e1))
@@ -236,9 +235,6 @@ uint32_t CasualModel::solve() {
     uint32_t race_count = 0;
 
     z3::expr_vector race_constraints(c_);
-
-    std::cout << "Number of COP events: " << filtered_cop_events_.size()
-              << std::endl;
 
     for (const auto& [e1, e2] : filtered_cop_events_) {
         z3::expr e1_expr = var_map_[getEventIdx(e1)];
