@@ -6,12 +6,14 @@
 
 struct Arguments {
     std::string executionTrace;  // -f compulsory
+    std::string witnessDir = "witness/"; // --witness_dir optional, default "witness/"
     bool logWitness = false;     // --log_witness optional, default false
     bool binaryFormat = true;    // --human optional, default true
     uint32_t maxNoOfCOP = 0;     // -c optional
 
     static Arguments fromArgs(int argc, char* argv[]) {
         std::string executionTrace;
+        std::string witnessDir = "witness/";
         bool logWitness = false;
         bool binaryFormat = true;
         uint32_t maxNoOfCOP = 0;
@@ -23,6 +25,11 @@ struct Arguments {
             executionTrace = *(++itr);
         } else {
             throw std::runtime_error("Please provide an input file");
+        }
+
+        itr = std::find(arguments.begin(), arguments.end(), "--witness_dir");
+        if (itr != arguments.end() && itr + 1 != arguments.end()) {
+            witnessDir = *(++itr);
         }
 
         itr = std::find(arguments.begin(), arguments.end(), "-c");
@@ -40,6 +47,6 @@ struct Arguments {
         binaryFormat = std::find(arguments.begin(), arguments.end(),
                                  "--human") == arguments.end();
 
-        return {executionTrace, logWitness, binaryFormat, maxNoOfCOP};
+        return {executionTrace, witnessDir, logWitness, binaryFormat, maxNoOfCOP};
     }
 };

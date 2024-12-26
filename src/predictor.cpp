@@ -4,20 +4,25 @@
 #include "casual_model.h"
 #include "cmd_argument_parser.cpp"
 #include "trace.h"
+#include "model_logger.h"
 
 int main(int argc, char* argv[]) {
+    LOG_INIT_COUT();
     try {
-        LOG_INIT_COUT();
-
         auto start = std::chrono::high_resolution_clock::now();
 
         Arguments args = Arguments::fromArgs(argc, argv);
+
+        std::filesystem::path inputTracePath(args.executionTrace);
+        std::string witnessPath = args.witnessDir + "/" + inputTracePath.stem().string();
 
         Trace trace = args.binaryFormat
                           ? Trace::fromBinaryFile(args.executionTrace)
                           : Trace::fromTextFile(args.executionTrace);
 
-        CasualModel model(trace);
+        ModelLogger logger(trace, witnessPath);
+
+        CasualModel model(trace, logger, args.logWitness);
 
         uint32_t race_count = model.solve();
 
@@ -32,7 +37,7 @@ int main(int argc, char* argv[]) {
 
         return 0;
     } catch (std::exception& e) {
-        std::cerr << e.what() << std::endl;
+        log(LOG_ERROR) << e.what() << "\n";
         return 1;
     }
 }

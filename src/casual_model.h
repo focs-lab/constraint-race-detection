@@ -8,10 +8,14 @@
 #include "lockset_engine.h"
 #include "trace.h"
 #include "transitive_closure.h"
+#include "model_logger.h"
 
 class CasualModel {
    private:
     Trace& trace_;
+    ModelLogger& logger_;
+
+    bool log_witness_;
 
     z3::context c_;
     z3::solver s_;
@@ -120,8 +124,10 @@ class CasualModel {
     }
 
    public:
-    CasualModel(Trace& trace)
+    CasualModel(Trace& trace, ModelLogger& logger, bool log_witness)
         : trace_(trace),
+          logger_(logger),
+          log_witness_(log_witness),
           lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()),
           c_(),
           s_(c_, "QF_IDL"),

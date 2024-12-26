@@ -50,6 +50,54 @@ class Event {
 
     inline uint32_t getEventId() const { return event_id_; }
 
+    std::string prettyString() const {
+        std::ostringstream oss;
+        std::string event_type;
+        std::string target_prefix;
+
+        switch (getEventType()) {
+            case Event::Read:
+                event_type = "Read";
+                target_prefix = "x";
+                break;
+            case Event::Write:
+                event_type = "Write";
+                target_prefix = "x";
+                break;
+            case Event::Acquire:
+                event_type = "Acq";
+                target_prefix = "l";
+                break;
+            case Event::Release:
+                event_type = "Rel";
+                target_prefix = "l";
+                break;
+            case Event::Begin:
+                event_type = "Begin";
+                target_prefix = "";
+                break;
+            case Event::End:
+                event_type = "End";
+                target_prefix = "";
+                break;
+            case Event::Fork:
+                event_type = "Fork";
+                target_prefix = "t";
+                break;
+            case Event::Join:
+                event_type = "Join";
+                target_prefix = "t";
+                break;
+            default:
+                break;
+        }
+
+        oss << event_type << " " << getThreadId() << " " << target_prefix
+            << getTargetId() << " " << getTargetValue();
+
+        return oss.str();
+    }
+
     static inline bool isNullEvent(const Event& e) {
         return e.getEventId() == 0;
     }
