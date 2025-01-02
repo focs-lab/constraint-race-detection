@@ -5,11 +5,11 @@
 #include <vector>
 
 #include "BSlogger.hpp"
-#include "event.h"
-#include "lockset_engine.h"
-#include "trace.h"
-#include "transitive_closure.h"
-#include "model_logger.h"
+#include "event.hpp"
+#include "lockset_engine.hpp"
+#include "model_logger.hpp"
+#include "trace.hpp"
+#include "transitive_closure.hpp"
 
 class CasualModel {
    private:
@@ -17,6 +17,7 @@ class CasualModel {
     ModelLogger& logger_;
 
     bool log_witness_;
+    bool log_binary_witness_;
 
     z3::context c_;
     z3::solver s_;
@@ -125,10 +126,12 @@ class CasualModel {
     }
 
    public:
-    CasualModel(Trace& trace, ModelLogger& logger, bool log_witness)
+    CasualModel(Trace& trace, ModelLogger& logger, bool log_witness,
+                bool log_binary_witness)
         : trace_(trace),
           logger_(logger),
           log_witness_(log_witness),
+          log_binary_witness_(log_binary_witness),
           lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()),
           c_(),
           s_(c_, "QF_IDL"),

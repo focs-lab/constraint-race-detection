@@ -1,4 +1,4 @@
-#include "model_logger.h"
+#include "model_logger.hpp"
 
 void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
                                    const Event& e2) {
@@ -57,4 +57,75 @@ void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
     }
 
     log_file_ << "------------------------------------------------------\n";
+}
+
+void ModelLogger::logBinaryWitnessPrefix(const z3::model& m, const Event& e1,
+                                         const Event& e2) {
+    std::vector<Event> events = trace_.getAllEvents();
+    std::vector<std::pair<std::string, int>> event_order;
+    int e1Idx, e2Idx;
+
+    for (unsigned i = 0; i < m.size(); ++i) {
+        z3::func_decl v = m[i];
+        if (!v.range().is_int()) continue;
+
+        z3::expr value = m.get_const_interp(v);
+        assert(value.is_int());
+
+        std::string name =
+            v.name().str().substr(2);  // "order variables start with e_"
+
+        if (name == std::to_string(e1.getEventId())) {
+            e1Idx = value.get_numeral_int();
+        } else if (name == std::to_string(e2.getEventId())) {
+            e2Idx = value.get_numeral_int();
+        }
+
+        event_order.push_back({name, value.get_numeral_int()});
+    }
+
+    std::sort(event_order.begin(), event_order.end(),
+              [](const std::pair<std::string, int>& a,
+                 const std::pair<std::string, int>& b) {
+                  return a.second < b.second;
+              });
+
+    std::vector<uint32_t> witness;
+
+    for (const auto& [name, order] : event_order) {
+        uint32_t i = std::stoul(name) - 1;
+        if (order > e1Idx || order > e2Idx) break;
+        if (i + 1 == e1.getEventId() || i + 1 == e2.getEventId()) continue;
+
+        witness.push_back(std::stoul(name));
+    }
+    if (e1Idx < e2Idx) {
+        witness.push_back(e1.getEventId());
+        witness.push_back(e2.getEventId());
+    } else {
+        witness.push_back(e2.getEventId());
+        witness.push_back(e1.getEventId());
+    }
+
+    uint32_t size = witness.size();
+    binary_log_file_.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
+    binary_log_file_.write(reinterpret_cast<const char*>(witness.data()), size * sizeof(uint32_t));
+}
+
+std::vector<std::vector<uint32_t>> ModelLogger::readBinaryWitness(const std::string& file_path) {
+    std::ifstream file(file_path, std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open binary witness file");
+    }
+
+    std::vector<std::vector<uint32_t>> witnesses;
+    while (file.peek() != EOF) {
+        uint32_t size;
+        file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
+        std::vector<uint32_t> witness(size);
+        file.read(reinterpret_cast<char*>(witness.data()), size * sizeof(uint32_t));
+        witnesses.push_back(witness);
+    }
+
+    return witnesses;
 }

@@ -5,10 +5,10 @@
 #include <utility>
 #include <vector>
 
-#include "event.h"
-#include "lock_region.h"
-#include "thread.h"
-#include "variable.h"
+#include "event.hpp"
+#include "lock_region.hpp"
+#include "thread.hpp"
+#include "variable.hpp"
 
 class Trace {
    private:

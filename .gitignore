@@ -1,6 +1,4 @@
-obj/
 traces/
 witness/
-predictor
-run_tests
+build/
 .vscode/

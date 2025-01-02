@@ -6,8 +6,9 @@
 
 struct Arguments {
     std::string executionTrace;  // -f compulsory
-    std::string witnessDir = "witness/"; // --witness_dir optional, default "witness/"
-    bool logWitness = false;     // --log_witness optional, default false
+    std::string witnessDir = "witness/"; // --witness-dir optional, default "witness/"
+    bool logWitness = false;     // --log-witness optional, default false
+    bool logBinaryWitness = false; // --log-binary-witness optional, default false
     bool binaryFormat = true;    // --human optional, default true
     uint32_t maxNoOfCOP = 0;     // -c optional
 
@@ -15,6 +16,7 @@ struct Arguments {
         std::string executionTrace;
         std::string witnessDir = "witness/";
         bool logWitness = false;
+        bool logBinaryWitness = false;
         bool binaryFormat = true;
         uint32_t maxNoOfCOP = 0;
 
@@ -27,7 +29,7 @@ struct Arguments {
             throw std::runtime_error("Please provide an input file");
         }
 
-        itr = std::find(arguments.begin(), arguments.end(), "--witness_dir");
+        itr = std::find(arguments.begin(), arguments.end(), "--witness-dir");
         if (itr != arguments.end() && itr + 1 != arguments.end()) {
             witnessDir = *(++itr);
         }
@@ -42,11 +44,14 @@ struct Arguments {
         }
 
         logWitness = std::find(arguments.begin(), arguments.end(),
-                               "--log_witness") != arguments.end();
+                               "--log-witness") != arguments.end();
+
+        logBinaryWitness = std::find(arguments.begin(), arguments.end(),
+                                     "--log-binary-witness") != arguments.end();
 
         binaryFormat = std::find(arguments.begin(), arguments.end(),
                                  "--human") == arguments.end();
 
-        return {executionTrace, witnessDir, logWitness, binaryFormat, maxNoOfCOP};
+        return {executionTrace, witnessDir, logWitness, logBinaryWitness, binaryFormat, maxNoOfCOP};
     }
 };

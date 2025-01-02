@@ -1,8 +1,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "event.h"
-#include "trace.h"
+#include "event.hpp"
+#include "trace.hpp"
 
 class LocksetEngine {
    private:

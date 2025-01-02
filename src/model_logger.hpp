@@ -5,12 +5,13 @@
 #include <fstream>
 #include <string>
 
-#include "trace.h"
+#include "trace.hpp"
 
 class ModelLogger {
    private:
     Trace& trace_;
     std::ofstream log_file_;
+    std::ofstream binary_log_file_;
 
    public:
     ModelLogger(Trace& trace, const std::string& log_file_path)
@@ -24,9 +25,14 @@ class ModelLogger {
             }
         }
 
-        log_file_.open(log_file_path);
+        log_file_.open(log_file_path + ".txt");
         if (!log_file_.is_open()) {
             throw std::runtime_error("Failed to open log file");
+        }
+
+        binary_log_file_.open(log_file_path, std::ios::binary);
+        if (!binary_log_file_.is_open()) {
+            throw std::runtime_error("Failed to open binary log file");
         }
     }
 
@@ -35,4 +41,7 @@ class ModelLogger {
     }
 
     void logWitnessPrefix(const z3::model& m, const Event& e1, const Event& e2);
+    void logBinaryWitnessPrefix(const z3::model& m, const Event& e1, const Event& e2);
+
+    static std::vector<std::vector<uint32_t>> readBinaryWitness(const std::string& file_path);
 };

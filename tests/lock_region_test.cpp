@@ -1,4 +1,4 @@
-#include "../src/lock_region.h" // Include the LockRegion header
+#include "../src/lock_region.hpp" // Include the LockRegion header
 #include <gtest/gtest.h>
 
 // Test LockRegion constructor

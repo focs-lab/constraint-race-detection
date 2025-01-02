@@ -1,4 +1,4 @@
-#include "casual_model.h"
+#include "casual_model.hpp"
 
 void CasualModel::filterCOPs() {
     for (const auto& [e1, e2] : trace_.getCOPs()) {
@@ -259,6 +259,9 @@ uint32_t CasualModel::solve() {
             race_count++;
             if (log_witness_) {
                 logger_.logWitnessPrefix(s_.get_model(), e1, e2);
+            }
+            if (log_binary_witness_) {
+                logger_.logBinaryWitnessPrefix(s_.get_model(), e1, e2);
             }
         }
 

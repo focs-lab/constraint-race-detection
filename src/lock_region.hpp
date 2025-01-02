@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-#include "event.h"
+#include "event.hpp"
 
 /**
  * LockRegion class represents a lock region in the trace.

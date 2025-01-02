@@ -1,4 +1,4 @@
-#include "../src/event.h" // Include the Event header
+#include "../src/event.hpp" // Include the Event header
 #include <gtest/gtest.h>
 
 // Test default constructor

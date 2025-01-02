@@ -1,10 +1,10 @@
 #include <iostream>
 
 #include "BSlogger.hpp"
-#include "casual_model.h"
+#include "casual_model.hpp"
 #include "cmd_argument_parser.cpp"
-#include "trace.h"
-#include "model_logger.h"
+#include "trace.hpp"
+#include "model_logger.hpp"
 
 int main(int argc, char* argv[]) {
     LOG_INIT_COUT();
@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
 
         ModelLogger logger(trace, witnessPath);
 
-        CasualModel model(trace, logger, args.logWitness);
+        CasualModel model(trace, logger, args.logWitness, args.logBinaryWitness);
 
         uint32_t race_count = model.solve();
 

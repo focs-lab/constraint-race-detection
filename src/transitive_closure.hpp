@@ -2,7 +2,7 @@
 #include <utility>
 #include <vector>
 
-#include "event.h"
+#include "event.hpp"
 
 class TransitiveClosure {
    private:
