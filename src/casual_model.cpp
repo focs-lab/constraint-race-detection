@@ -253,14 +253,15 @@ uint32_t CasualModel::solve() {
         z3::expr_vector race_sat(c_);
         race_sat.push_back(race_con);
 
+        auto [e1, e2] = filtered_cop_events_[i];
+
         if (s_.check(race_sat) == z3::sat) {
             race_count++;
-
             if (log_witness_) {
-                auto [e1, e2] = filtered_cop_events_[i];
                 logger_.logWitnessPrefix(s_.get_model(), e1, e2);
             }
         }
+
         i++;
     }
 

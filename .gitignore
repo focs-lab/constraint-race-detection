@@ -1,5 +1,6 @@
 obj/
 traces/
+witness/
 predictor
 run_tests
 .vscode/

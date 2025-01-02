@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "BSlogger.hpp"
 #include "event.h"
 #include "lockset_engine.h"
 #include "trace.h"
@@ -54,7 +55,7 @@ class CasualModel {
 
     inline bool hb(const Event& e1, const Event& e2) {
         return mhb_closure_.happensBefore(e1, e2) ||
-               (e1.getTargetId() == e2.getTargetId() &&
+               (e1.getThreadId() == e2.getThreadId() &&
                 e1.getEventId() < e2.getEventId());
     }
 
