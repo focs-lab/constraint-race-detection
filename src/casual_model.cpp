@@ -231,8 +231,9 @@ z3::expr CasualModel::getPhiSC(Event e) {
     return c_.bool_val(true);
 }
 
-uint32_t CasualModel::solve() {
+uint32_t CasualModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
     uint32_t race_count = 0;
+    LOG_INIT_COUT();
 
     z3::expr_vector race_constraints(c_);
 
@@ -240,7 +241,7 @@ uint32_t CasualModel::solve() {
         z3::expr e1_expr = var_map_[getEventIdx(e1)];
         z3::expr e2_expr = var_map_[getEventIdx(e2)];
 
-        race_constraints.push_back(e1_expr == e2_expr & getPhiAbs(e1) &
+        race_constraints.push_back((e1_expr == e2_expr) & getPhiAbs(e1) &
                                    getPhiAbs(e2));
     }
 
@@ -250,6 +251,8 @@ uint32_t CasualModel::solve() {
 
     int i = 0;
     for (const auto& race_con : race_constraints) {
+        if (maxCOPCheck && i > maxCOPCheck) break;
+
         z3::expr_vector race_sat(c_);
         race_sat.push_back(race_con);
 
@@ -263,6 +266,8 @@ uint32_t CasualModel::solve() {
             if (log_binary_witness_) {
                 logger_.logBinaryWitnessPrefix(s_.get_model(), e1, e2);
             }
+
+            if (maxRaceCheck && race_count >= maxRaceCheck) break;
         }
 
         i++;

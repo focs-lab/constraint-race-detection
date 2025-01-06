@@ -115,10 +115,10 @@ Trace Trace::fromTextFile(const std::string& filename) {
     }
 
     std::unordered_map<std::string, Event::EventType> eventTypeMapping = {
-    {"read", Event::EventType::Read},   {"write", Event::EventType::Write},
-    {"acq", Event::EventType::Acquire}, {"rel", Event::EventType::Release},
-    {"begin", Event::EventType::Begin}, {"end", Event::EventType::End},
-    {"fork", Event::EventType::Fork},   {"join", Event::EventType::Join}};
+        {"read", Event::EventType::Read},   {"write", Event::EventType::Write},
+        {"acq", Event::EventType::Acquire}, {"rel", Event::EventType::Release},
+        {"begin", Event::EventType::Begin}, {"end", Event::EventType::End},
+        {"fork", Event::EventType::Fork},   {"join", Event::EventType::Join}};
 
     /* Global Trace information */
     std::unordered_map<std::string, uint32_t> varNameMapping;
@@ -129,7 +129,7 @@ Trace Trace::fromTextFile(const std::string& filename) {
     std::vector<uint64_t> raw_events;
 
     std::string line;
-    while(std::getline(file, line)) {
+    while (std::getline(file, line)) {
         std::istringstream iss(line);
         std::string EventTypeStr, varName;
         uint32_t threadId, varValue, varId;
@@ -138,9 +138,9 @@ Trace Trace::fromTextFile(const std::string& filename) {
             throw std::runtime_error("Invalid event: " + line);
         }
 
-        std::transform(EventTypeStr.begin(), EventTypeStr.end(), EventTypeStr.begin(), [](unsigned char c) {
-            return std::tolower(c);
-        });
+        std::transform(EventTypeStr.begin(), EventTypeStr.end(),
+                       EventTypeStr.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
 
         if (eventTypeMapping.find(EventTypeStr) == eventTypeMapping.end()) {
             throw std::runtime_error("Invalid event type: " + EventTypeStr);
@@ -148,23 +148,27 @@ Trace Trace::fromTextFile(const std::string& filename) {
 
         Event::EventType eventType = eventTypeMapping[EventTypeStr];
 
-        if (eventType == Event::EventType::Read || eventType == Event::EventType::Write) {
+        if (eventType == Event::EventType::Read ||
+            eventType == Event::EventType::Write) {
             if (varNameMapping.find(varName) == varNameMapping.end()) {
                 varNameMapping[varName] = availVarId++;
             }
             varId = varNameMapping[varName];
-        } else if (eventType == Event::EventType::Acquire || eventType == Event::EventType::Release) {
+        } else if (eventType == Event::EventType::Acquire ||
+                   eventType == Event::EventType::Release) {
             if (lockNameMapping.find(varName) == lockNameMapping.end()) {
                 lockNameMapping[varName] = availLockId++;
             }
             varId = lockNameMapping[varName];
-        } else if (eventType == Event::EventType::Fork || eventType == Event::EventType::Join) {
+        } else if (eventType == Event::EventType::Fork ||
+                   eventType == Event::EventType::Join) {
             varId = std::stoul(varName);
         } else {
             varId = 0;
         }
 
-        raw_events.push_back(Event::createRawEvent(eventType, threadId, varId, varValue));
+        raw_events.push_back(
+            Event::createRawEvent(eventType, threadId, varId, varValue));
     }
 
     return createTrace(raw_events);
@@ -208,6 +212,11 @@ Trace::getThreadIdToLockIdToLockRegions() const {
         }
     }
     return res;
+}
+
+Thread Trace::getThread(uint32_t thread_id) const {
+    assert(thread_id_to_thread_.find(thread_id) != thread_id_to_thread_.end());
+    return thread_id_to_thread_.at(thread_id);
 }
 
 std::vector<Thread> Trace::getThreads() const {

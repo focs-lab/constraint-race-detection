@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 
         CasualModel model(trace, logger, args.logWitness, args.logBinaryWitness);
 
-        uint32_t race_count = model.solve();
+        uint32_t race_count = model.solve(args.maxNoOfCOP, args.maxNoOfRace);
 
         auto end = std::chrono::high_resolution_clock::now();
 

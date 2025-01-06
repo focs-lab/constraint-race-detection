@@ -11,6 +11,7 @@ struct Arguments {
     bool logBinaryWitness = false; // --log-binary-witness optional, default false
     bool binaryFormat = true;    // --human optional, default true
     uint32_t maxNoOfCOP = 0;     // -c optional
+    uint32_t maxNoOfRace = 0;    // -r optional
 
     static Arguments fromArgs(int argc, char* argv[]) {
         std::string executionTrace;
@@ -19,6 +20,7 @@ struct Arguments {
         bool logBinaryWitness = false;
         bool binaryFormat = true;
         uint32_t maxNoOfCOP = 0;
+        uint32_t maxNoOfRace = 0;
 
         std::vector<std::string> arguments(argv + 1, argv + argc);
 
@@ -43,6 +45,15 @@ struct Arguments {
             }
         }
 
+        itr = std::find(arguments.begin(), arguments.end(), "-r");
+        if (itr != arguments.end() && itr + 1 != arguments.end()) {
+            try {
+                maxNoOfRace = std::stoul(*(++itr));
+            } catch (std::exception& e) {
+                throw std::runtime_error("Invalid max number of Races");
+            }
+        }
+
         logWitness = std::find(arguments.begin(), arguments.end(),
                                "--log-witness") != arguments.end();
 
@@ -52,6 +63,6 @@ struct Arguments {
         binaryFormat = std::find(arguments.begin(), arguments.end(),
                                  "--human") == arguments.end();
 
-        return {executionTrace, witnessDir, logWitness, logBinaryWitness, binaryFormat, maxNoOfCOP};
+        return {executionTrace, witnessDir, logWitness, logBinaryWitness, binaryFormat, maxNoOfCOP, maxNoOfRace};
     }
 };

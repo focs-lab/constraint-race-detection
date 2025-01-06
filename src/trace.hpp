@@ -51,6 +51,7 @@ class Trace {
     std::vector<std::pair<Event, Event>> getForkBeginPairs() const;
     std::vector<std::pair<Event, Event>> getEndJoinPairs() const;
 
+    Thread getThread(uint32_t thread_id) const;
     std::vector<Thread> getThreads() const;
 
     std::unordered_map<uint32_t, std::vector<LockRegion>>

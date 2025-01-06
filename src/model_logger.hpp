@@ -6,6 +6,7 @@
 #include <string>
 
 #include "trace.hpp"
+#include "BSlogger.hpp"
 
 class ModelLogger {
    private:

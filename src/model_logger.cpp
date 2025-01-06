@@ -2,6 +2,7 @@
 
 void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
                                    const Event& e2) {
+    LOG_INIT_COUT();
     std::vector<Event> events = trace_.getAllEvents();
     std::vector<std::pair<std::string, int>> event_order;
     int e1Idx, e2Idx;

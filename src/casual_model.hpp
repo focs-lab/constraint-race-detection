@@ -149,5 +149,5 @@ class CasualModel {
         filterCOPs();
     }
 
-    uint32_t solve();
+    uint32_t solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck);
 };
