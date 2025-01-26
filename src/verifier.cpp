@@ -25,12 +25,16 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
     std::unordered_map<uint32_t, uint32_t>
         lockIdToThread;  // lock id -> thread id holding the lock
 
-    log(LOG_INFO) << "Witness size: " << witness.size() << "\n";
 
     int i = 0;
     for (auto e : witness) {
+        if (i >= witness.size() - 2)
+            break; // the last two events are the COP themselevs
+
         Event event = events[e - 1];
         uint32_t threadId = event.getThreadId();
+
+        // log(LOG_INFO) << event.prettyString() << "\n";
 
         if (threadEventTracker.find(threadId) == threadEventTracker.end()) {
             threadEventTracker[threadId] = 0;
@@ -54,7 +58,8 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
             uint32_t lockId = event.getTargetId();
             if (lockIdToLockStatus.find(lockId) != lockIdToLockStatus.end() &&
                 !lockIdToLockStatus[lockId]) {
-                log(LOG_INFO) << "Lock Acquire failed\n";
+                log(LOG_INFO) << "Lock Acquire failed.\n";
+                log(LOG_INFO) << "Event: " << event.getEventId() << "\n";
                 return false;
             }
             lockIdToLockStatus[event.getTargetId()] = false;
@@ -76,10 +81,6 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
         if (event.getEventType() == Event::EventType::Read) {
             uint32_t varId = event.getTargetId();
 
-            if (varId == 1) {
-                log(LOG_INFO) << event.prettyString() << "\n";
-            } 
-
             if (variableIdToVal.find(varId) == variableIdToVal.end()) {
                 variableIdToVal[varId] = event.getTargetValue();
             }
@@ -92,9 +93,6 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
                 return false;
             }
         } else if (event.getEventType() == Event::EventType::Write) {
-            if (event.getTargetId() == 1) {
-                log(LOG_INFO) << event.prettyString() << "\n";
-            } 
             variableIdToVal[event.getTargetId()] = event.getTargetValue();
         }
 
@@ -119,15 +117,22 @@ int main(int argc, char* argv[]) {
             ModelLogger::readBinaryWitness(witnessPath);
 
         int i = 0;
+        int pass = 0;
+        int fail = 0;
         for (auto witness : binaryWitness) {
             bool res = isWitnessConsistent(witness, trace);
 
             if (!res) {
+                std::cout << "inconsistent witness: " << i << "\n";
                 break;
             }
 
             i++;
         }
+
+        if (i == binaryWitness.size())
+            std::cout << "all witness are consistent\n";
+
     } catch (std::exception& e) {
         std::cerr << e.what() << "\n";
         return 1;

@@ -3,7 +3,8 @@
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 TRACES_DIR="$PROJECT_DIR/traces"
-PROGRAM="$PROJECT_DIR/predictor"
+PROGRAM="$PROJECT_DIR/build/predictor"
+VERIFIER="$PROJECT_DIR/build/verifier"
 
 TIMEOUT=600
 
@@ -39,6 +40,9 @@ BENCHMARK_TRACES=(
     "wronglock"
 )
 
+PREDICTOR_EXEC="$PROGRAM --log-binary-witness -f"
+VERIFIER_EXEC="$VERIFIER -f"
+
 for trace in "${BENCHMARK_TRACES[@]}"; do
 
     if [ ! -f "$TRACES_DIR/$trace" ]; then
@@ -47,7 +51,7 @@ for trace in "${BENCHMARK_TRACES[@]}"; do
     fi
 
     echo "Running $trace"
-    gtimeout $TIMEOUT "$PROGRAM" -f "$TRACES_DIR/$trace" 2>&1
+    gtimeout $TIMEOUT $VERIFIER_EXEC "$TRACES_DIR/$trace" 2>&1
     EXIT_CODE=$?
 
     if [ $EXIT_CODE -eq 124 ]; then

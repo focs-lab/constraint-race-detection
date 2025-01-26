@@ -91,15 +91,20 @@ void CasualModel::generateLockConstraints() {
     s_.add(lock_constraints_);
 }
 
-z3::expr CasualModel::getPhiConc(Event e) {
+z3::expr CasualModel::getPhiConc(Event e, bool track) {
+    LOG_INIT_COUT();
     assert(e.getEventType() == Event::EventType::Read);
 
     if (read_to_phi_conc_offset_.find(e) == read_to_phi_conc_offset_.end()) {
+        // if (track)
+        //     log(LOG_INFO) << "PhiConc for: " << e.getEventId() << "\n";
+
+
         read_to_phi_conc_offset_[e] = read_to_phi_conc_.size();
         read_to_phi_conc_.push_back(getEventPhiZ3Expr(e));
 
-        z3::expr phiAbs = getPhiAbs(e);
-        z3::expr phiSC = getPhiSC(e);
+        z3::expr phiAbs = getPhiAbs(e, track);
+        z3::expr phiSC = getPhiSC(e, track);
 
         z3::expr phiConc = phiAbs & phiSC;
 
@@ -109,16 +114,18 @@ z3::expr CasualModel::getPhiConc(Event e) {
     return getEventPhiZ3Expr(e);
 }
 
-z3::expr CasualModel::getPhiAbs(Event e) {
+z3::expr CasualModel::getPhiAbs(Event e, bool track) {
+    LOG_INIT_COUT();
     Event prevRead = trace_.getPrevReadInThread(e);
 
     if (Event::isNullEvent(prevRead)) return c_.bool_val(true);
 
-    return getPhiConc(prevRead);
+    return getPhiConc(prevRead, track);
 }
 
-z3::expr CasualModel::getPhiSC(Event e) {
+z3::expr CasualModel::getPhiSC(Event e, bool track) {
     assert(e.getEventType() == Event::EventType::Read);
+    LOG_INIT_COUT();
 
     std::vector<Event> goodWrites = trace_.getGoodWritesForRead(e);
     std::vector<Event> badWrites = trace_.getBadWritesForRead(e);
@@ -167,7 +174,7 @@ z3::expr CasualModel::getPhiSC(Event e) {
         for (const Event& goodWrite : goodWrites) {
             z3::expr_vector rfConstraints(c_);
 
-            rfConstraints.push_back(getPhiAbs(goodWrite));
+            rfConstraints.push_back(getPhiAbs(goodWrite, track));
             rfConstraints.push_back(var_map_[getEventIdx(goodWrite)] <
                                     var_map_[getEventIdx(e)]);
 
@@ -204,7 +211,7 @@ z3::expr CasualModel::getPhiSC(Event e) {
         for (const Event& goodWrite : goodWrites) {
             z3::expr_vector rfConstraints(c_);
 
-            rfConstraints.push_back(getPhiAbs(goodWrite));
+            rfConstraints.push_back(getPhiAbs(goodWrite, track));
             rfConstraints.push_back(var_map_[getEventIdx(goodWrite)] <
                                     var_map_[getEventIdx(e)]);
 
@@ -241,8 +248,10 @@ uint32_t CasualModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
         z3::expr e1_expr = var_map_[getEventIdx(e1)];
         z3::expr e2_expr = var_map_[getEventIdx(e2)];
 
-        race_constraints.push_back((e1_expr == e2_expr) & getPhiAbs(e1) &
-                                   getPhiAbs(e2));
+        bool track = e1.getEventId() == 235 && e2.getEventId() == 261;
+
+        race_constraints.push_back((e1_expr == e2_expr) & getPhiAbs(e1, track) &
+                                   getPhiAbs(e2, track));
     }
 
     for (const auto& [read, phiConcOffset] : read_to_phi_conc_offset_) {
@@ -262,9 +271,6 @@ uint32_t CasualModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
             race_count++;
             if (log_witness_) {
                 logger_.logWitnessPrefix(s_.get_model(), e1, e2);
-            }
-            if (log_binary_witness_) {
-                logger_.logBinaryWitnessPrefix(s_.get_model(), e1, e2);
             }
 
             if (maxRaceCheck && race_count >= maxRaceCheck) break;

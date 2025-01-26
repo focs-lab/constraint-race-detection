@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
                           ? Trace::fromBinaryFile(args.executionTrace)
                           : Trace::fromTextFile(args.executionTrace);
 
-        ModelLogger logger(trace, witnessPath);
+        ModelLogger logger(trace, witnessPath, args.logBinaryWitness);
 
         CasualModel model(trace, logger, args.logWitness, args.logBinaryWitness);
 

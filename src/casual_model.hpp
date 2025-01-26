@@ -40,9 +40,9 @@ class CasualModel {
     void generateMHBConstraints();
     void generateLockConstraints();
 
-    z3::expr getPhiConc(Event e);
-    z3::expr getPhiAbs(Event e);
-    z3::expr getPhiSC(Event e);
+    z3::expr getPhiConc(Event e, bool track = false);
+    z3::expr getPhiAbs(Event e, bool track = false);
+    z3::expr getPhiSC(Event e, bool track = false);
 
     inline uint32_t getEventIdx(const Event e) { return e.getEventId() - 1; }
 

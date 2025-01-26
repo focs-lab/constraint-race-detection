@@ -5,24 +5,26 @@
 #include <fstream>
 #include <string>
 
-#include "trace.hpp"
 #include "BSlogger.hpp"
+#include "trace.hpp"
 
 class ModelLogger {
    private:
+    bool log_binary_witness_;
     Trace& trace_;
     std::ofstream log_file_;
     std::ofstream binary_log_file_;
 
    public:
-    ModelLogger(Trace& trace, const std::string& log_file_path)
-        : trace_(trace) {
+    ModelLogger(Trace& trace, const std::string& log_file_path, bool log_binary_witness)
+        : trace_(trace), log_binary_witness_(log_binary_witness) {
         std::filesystem::path log_path(log_file_path);
         std::filesystem::path dir = log_path.parent_path();
 
         if (!dir.empty() && !std::filesystem::exists(dir)) {
-            if(!std::filesystem::create_directories(dir)) {
-                throw std::runtime_error("Failed to create directory for log file");
+            if (!std::filesystem::create_directories(dir)) {
+                throw std::runtime_error(
+                    "Failed to create directory for log file");
             }
         }
 
@@ -42,7 +44,9 @@ class ModelLogger {
     }
 
     void logWitnessPrefix(const z3::model& m, const Event& e1, const Event& e2);
-    void logBinaryWitnessPrefix(const z3::model& m, const Event& e1, const Event& e2);
+    void logBinaryWitnessPrefix(const z3::model& m, const Event& e1,
+                                const Event& e2);
 
-    static std::vector<std::vector<uint32_t>> readBinaryWitness(const std::string& file_path);
+    static std::vector<std::vector<uint32_t>> readBinaryWitness(
+        const std::string& file_path);
 };

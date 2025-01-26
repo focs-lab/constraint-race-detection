@@ -60,6 +60,7 @@ class Trace {
         uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
     getThreadIdToLockIdToLockRegions() const;
 
+    Event getEvent(uint32_t eid) const;
     Event getPrevReadInThread(const Event& e) const;
     Event getSameThreadSameVarPrevWrite(const Event& e) const;
     Event getPrevDiffReadInThread(const Event& e) const;
