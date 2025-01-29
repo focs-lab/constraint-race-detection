@@ -143,7 +143,6 @@ class CasualModel {
         p.set("auto_config", false);
         p.set("smt.arith.solver", (unsigned)1);
         s_.set(p);
-        LOG_INIT_COUT();
         generateZ3VarMap();
         generateMHBConstraints();
         generateLockConstraints();
