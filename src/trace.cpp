@@ -11,8 +11,8 @@ Trace Trace::createTrace(const std::vector<uint64_t>& raw_events) {
 
     std::unordered_map<uint32_t, Thread> thread_id_to_thread;
     std::unordered_map<uint32_t, Variable> var_id_to_variable;
-    std::unordered_map<uint32_t, std::vector<LockRegion>>
-        lock_id_to_lock_region;
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
+        lock_id_to_thread_id_to_lock_region;
 
     // start from event id 1 because 0 is reserved for null event
     uint32_t event_id = 1;
@@ -51,7 +51,7 @@ Trace Trace::createTrace(const std::vector<uint64_t>& raw_events) {
                 last_acquire[e.getTargetId()] = e;
                 break;
             case Event::EventType::Release:
-                lock_id_to_lock_region[e.getTargetId()].emplace_back(
+                lock_id_to_thread_id_to_lock_region[e.getTargetId()][e.getThreadId()].emplace_back(
                     last_acquire[e.getTargetId()], e);
                 break;
             case Event::EventType::Read:
@@ -77,7 +77,7 @@ Trace Trace::createTrace(const std::vector<uint64_t>& raw_events) {
 
     return Trace(all_events, fork_begin_pairs, end_join_pairs,
                  thread_id_to_thread, var_id_to_variable,
-                 lock_id_to_lock_region);
+                 lock_id_to_thread_id_to_lock_region);
 }
 
 Trace Trace::fromBinaryFile(const std::string& filename) {
@@ -195,9 +195,9 @@ std::vector<std::pair<Event, Event>> Trace::getEndJoinPairs() const {
     return end_join_pairs_;
 }
 
-std::unordered_map<uint32_t, std::vector<LockRegion>> Trace::getLockRegions()
+std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>> Trace::getLockRegions()
     const {
-    return lock_id_to_lock_region_;
+    return lock_id_to_thread_id_to_lock_region_;
 }
 
 std::unordered_map<uint32_t,
@@ -206,7 +206,13 @@ Trace::getThreadIdToLockIdToLockRegions() const {
     std::unordered_map<uint32_t,
                        std::unordered_map<uint32_t, std::vector<LockRegion>>>
         res;
-    for (const auto& [lockId, lockRegions] : lock_id_to_lock_region_) {
+    for (const auto& [lockId, threadIdToLockRegions] : lock_id_to_thread_id_to_lock_region_) {
+        std::vector<LockRegion> lockRegions;
+
+        for (const auto& pair : threadIdToLockRegions) {
+            lockRegions.insert(lockRegions.end(), pair.second.begin(), pair.second.end());
+        }
+
         for (const LockRegion& lockRegion : lockRegions) {
             res[lockRegion.getRegionThreadId()][lockId].push_back(lockRegion);
         }

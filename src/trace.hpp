@@ -21,22 +21,22 @@ class Trace {
 
     std::unordered_map<uint32_t, Variable> var_id_to_variable_;
 
-    std::unordered_map<uint32_t, std::vector<LockRegion>>
-        lock_id_to_lock_region_;
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
+        lock_id_to_thread_id_to_lock_region_;
 
     Trace(std::vector<Event> all_events,
           std::vector<std::pair<Event, Event>> fork_begin_pairs,
           std::vector<std::pair<Event, Event>> end_join_pairs,
           std::unordered_map<uint32_t, Thread> thread_id_to_thread,
           std::unordered_map<uint32_t, Variable> var_id_to_variable,
-          std::unordered_map<uint32_t, std::vector<LockRegion>>
-              lock_id_to_lock_region)
+          std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
+              lock_id_to_thread_id_to_lock_region)
         : all_events_(all_events),
           fork_begin_pairs_(fork_begin_pairs),
           end_join_pairs_(end_join_pairs),
           thread_id_to_thread_(thread_id_to_thread),
           var_id_to_variable_(var_id_to_variable),
-          lock_id_to_lock_region_(lock_id_to_lock_region) {}
+          lock_id_to_thread_id_to_lock_region_(lock_id_to_thread_id_to_lock_region) {}
 
    public:
     static Trace createTrace(const std::vector<uint64_t>& raw_events);
@@ -54,7 +54,7 @@ class Trace {
     Thread getThread(uint32_t thread_id) const;
     std::vector<Thread> getThreads() const;
 
-    std::unordered_map<uint32_t, std::vector<LockRegion>>
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>
     getLockRegions() const;
     std::unordered_map<
         uint32_t, std::unordered_map<uint32_t, std::vector<LockRegion>>>

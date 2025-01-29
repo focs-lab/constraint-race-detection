@@ -61,7 +61,15 @@ void CasualModel::generateMHBConstraints() {
 }
 
 void CasualModel::generateLockConstraints() {
-    for (const auto& [lockId, lockRegions] : trace_.getLockRegions()) {
+    for (const auto& [lockId, threadIdToLockRegions] : trace_.getLockRegions()) {
+        std::vector<uint32_t> threadIds;
+        std::vector<LockRegion> lockRegions;
+
+        for (const auto& pair : threadIdToLockRegions) {
+            threadIds.push_back(pair.first);
+            lockRegions.insert(lockRegions.end(), pair.second.begin(), pair.second.end());
+        }
+
         for (int i = 0; i < lockRegions.size(); ++i) {
             for (int j = i + 1; j < lockRegions.size(); ++j) {
                 const LockRegion& lr1 = lockRegions[i];
@@ -84,6 +92,37 @@ void CasualModel::generateLockConstraints() {
                     var_map_[getEventIdx(lr1.getAcqEvent())];
 
                 lock_constraints_.push_back(rel1_lt_acq2 ^ rel2_lt_acq1);
+            }
+        }
+
+        for (int tid1 = 0; tid1 < threadIds.size(); ++tid1) {
+            for (int tid2 = tid1 + 1; tid2 < threadIds.size(); ++tid2) {
+                uint32_t t1 = threadIds[tid1], t2 = threadIds[tid2];
+                for (int i = 0; i < threadIdToLockRegions.at(t1).size(); ++i) {
+                    const LockRegion& lr1 = threadIdToLockRegions.at(t1)[i];
+                    for (int j = 0; j < threadIdToLockRegions.at(t2).size(); ++j) {
+                        const LockRegion& lr2 = threadIdToLockRegions.at(t2)[j];
+                        z3::expr condition = var_map_[getEventIdx(lr1.getRelEvent())] < var_map_[getEventIdx(lr2.getAcqEvent())];
+                        for (int z = j + 1; z < threadIdToLockRegions.at(t2).size(); ++z) {
+                            const LockRegion& lr3 = threadIdToLockRegions.at(t2)[z];
+                            z3::expr result = var_map_[getEventIdx(lr1.getRelEvent())] < var_map_[getEventIdx(lr3.getAcqEvent())];
+                            lock_constraints_.push_back(implies(condition, result));
+                        }
+                    }
+                }
+
+                for (int i = 0; i < threadIdToLockRegions.at(t2).size(); ++i) {
+                    const LockRegion& lr1 = threadIdToLockRegions.at(t2)[i];
+                    for (int j = 0; j < threadIdToLockRegions.at(t1).size(); ++j) {
+                        const LockRegion& lr2 = threadIdToLockRegions.at(t1)[j];
+                        z3::expr condition = var_map_[getEventIdx(lr1.getRelEvent())] < var_map_[getEventIdx(lr2.getAcqEvent())];
+                        for (int z = j + 1; z < threadIdToLockRegions.at(t1).size(); ++z) {
+                            const LockRegion& lr3 = threadIdToLockRegions.at(t1)[z];
+                            z3::expr result = var_map_[getEventIdx(lr1.getRelEvent())] < var_map_[getEventIdx(lr3.getAcqEvent())];
+                            lock_constraints_.push_back(implies(condition, result));
+                        }
+                    }
+                }
             }
         }
     }
