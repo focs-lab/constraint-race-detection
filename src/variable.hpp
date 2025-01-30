@@ -17,8 +17,8 @@ class Variable {
     std::unordered_map<uint32_t, std::vector<Event>> var_val_to_write_events_;
     std::unordered_map<uint32_t, std::vector<Event>> tid_to_read_events_;
     std::unordered_map<uint32_t, std::vector<Event>> tid_to_write_events_;
-    std::unordered_map<Event, Event, EventHash> read_to_prev_write_in_thread_;
-    std::unordered_map<Event, Event, EventHash>
+    std::unordered_map<EID, Event> read_to_prev_write_in_thread_;
+    std::unordered_map<EID, Event>
         read_to_prev_diff_read_in_thread_;
 
    public:
@@ -34,14 +34,14 @@ class Variable {
                 Event::isNullEvent(first_write_))
                 first_read_ = e;
 
-            read_to_prev_diff_read_in_thread_[e] = Event();
+            read_to_prev_diff_read_in_thread_[e.getEventId()] = Event();
 
             if (tid_to_read_events_.find(e.getThreadId()) !=
                 tid_to_read_events_.end()) {
                 for (auto it = tid_to_read_events_[e.getThreadId()].rbegin();
                      it != tid_to_read_events_[e.getThreadId()].rend(); ++it) {
                     if (it->getTargetValue() != e.getTargetValue()) {
-                        read_to_prev_diff_read_in_thread_[e] = *it;
+                        read_to_prev_diff_read_in_thread_[e.getEventId()] = *it;
                         break;
                     }
                 }
@@ -51,7 +51,7 @@ class Variable {
 
             if (tid_to_write_events_.find(e.getThreadId()) !=
                 tid_to_write_events_.end()) {
-                read_to_prev_write_in_thread_[e] =
+                read_to_prev_write_in_thread_[e.getEventId()] =
                     tid_to_write_events_.at(e.getThreadId()).back();
             }
         } else if (e.getEventType() == Event::EventType::Write) {
@@ -104,25 +104,23 @@ class Variable {
     const Event getPrevWriteInThread(const Event& e) const {
         assert(e.getEventType() == Event::EventType::Read);
 
-        if (read_to_prev_write_in_thread_.find(e) ==
-            read_to_prev_write_in_thread_.end()) {
-            Event emptyEvent;
-            return emptyEvent;  // no prev write so return null event
+        if (read_to_prev_write_in_thread_.find(e.getEventId()) ==
+            read_to_prev_write_in_thread_.end()) {;
+            return Event();  // no prev write so return null event
         }
 
-        return read_to_prev_write_in_thread_.at(e);
+        return read_to_prev_write_in_thread_.at(e.getEventId());
     }
 
     const Event getPrevDiffReadInThread(const Event& e) const {
         assert(e.getEventType() == Event::EventType::Read);
 
-        if (read_to_prev_diff_read_in_thread_.find(e) ==
+        if (read_to_prev_diff_read_in_thread_.find(e.getEventId()) ==
             read_to_prev_diff_read_in_thread_.end()) {
-            Event emptyEvent;
-            return emptyEvent;  // no prev diff read so return null event
+            return Event();  // no prev diff read so return null event
         }
 
-        return read_to_prev_diff_read_in_thread_.at(e);
+        return read_to_prev_diff_read_in_thread_.at(e.getEventId());
     }
 
     std::vector<std::pair<Event, Event>> getCOP() const {

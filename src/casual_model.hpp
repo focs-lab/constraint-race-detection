@@ -27,7 +27,7 @@ class CasualModel {
     z3::expr_vector lock_constraints_;
     z3::expr_vector read_to_phi_conc_;
 
-    std::unordered_map<Event, uint32_t, EventHash> read_to_phi_conc_offset_;
+    std::unordered_map<EID, uint32_t> read_to_phi_conc_offset_;
 
     LocksetEngine lockset_engine_;
     TransitiveClosure mhb_closure_;
@@ -40,9 +40,9 @@ class CasualModel {
     void generateMHBConstraints();
     void generateLockConstraints();
 
-    z3::expr getPhiConc(Event e, bool track = false);
-    z3::expr getPhiAbs(Event e, bool track = false);
-    z3::expr getPhiSC(Event e, bool track = false);
+    z3::expr getPhiConc(Event e);
+    z3::expr getPhiAbs(Event e);
+    z3::expr getPhiSC(Event e);
 
     inline uint32_t getEventIdx(const Event e) { return e.getEventId() - 1; }
 
@@ -52,6 +52,10 @@ class CasualModel {
 
     inline z3::expr getEventPhiZ3Expr(const Event e) {
         return c_.bool_const(("phi_" + std::to_string(e.getEventId())).c_str());
+    }
+
+    inline z3::expr getEventPhiZ3Expr(const EID e) {
+        return c_.bool_const(("phi_" + std::to_string(e)).c_str());
     }
 
     inline bool hb(const Event& e1, const Event& e2) {

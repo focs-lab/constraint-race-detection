@@ -6,6 +6,9 @@
 #include <sstream>
 #include <string>
 
+typedef uint32_t EID;
+typedef uint32_t TID;
+
 /**
  * Event class represents an event in the trace.
  * It contains information about the event type, thread id, target id,
@@ -32,7 +35,6 @@ class Event {
         Fork = 6,
         Join = 7
     };
-
     Event() : raw_event_(0), event_id_(0) {}
 
     Event(uint64_t raw_event_, uint32_t event_id_)
@@ -42,13 +44,13 @@ class Event {
         return static_cast<EventType>((raw_event_ >> 60) & 0xF);
     }
 
-    inline uint32_t getThreadId() const { return (raw_event_ >> 52) & 0xFF; }
+    inline TID getThreadId() const { return (raw_event_ >> 52) & 0xFF; }
 
     inline uint32_t getTargetId() const { return (raw_event_ >> 32) & 0xFFFFF; }
 
     inline uint32_t getTargetValue() const { return raw_event_ & 0xFFFFFFFF; }
 
-    inline uint32_t getEventId() const { return event_id_; }
+    inline EID getEventId() const { return event_id_; }
 
     std::string prettyString() const {
         std::ostringstream oss;
@@ -111,12 +113,12 @@ class Event {
     }
 
     bool operator==(const Event& other) const {
-        return raw_event_ == other.raw_event_ && event_id_ == other.event_id_;
+        return event_id_ == other.event_id_;
     }
 };
 
 struct EventHash {
     std::size_t operator()(const Event& e) const {
-        return std::hash<uint64_t>{}(e.getEventId());
+        return std::hash<uint32_t>{}(e.getEventId());
     }
 };
