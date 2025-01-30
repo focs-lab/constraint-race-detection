@@ -39,7 +39,7 @@ struct Arguments {
         itr = std::find(arguments.begin(), arguments.end(), "-c");
         if (itr != arguments.end() && itr + 1 != arguments.end()) {
             try {
-                maxNoOfCOP = std::stoul(*(++itr));
+                maxNoOfCOP = static_cast<uint32_t>(std::stoul(*(++itr)));
             } catch (std::exception& e) {
                 throw std::runtime_error("Invalid max number of COP events");
             }
@@ -48,7 +48,7 @@ struct Arguments {
         itr = std::find(arguments.begin(), arguments.end(), "-r");
         if (itr != arguments.end() && itr + 1 != arguments.end()) {
             try {
-                maxNoOfRace = std::stoul(*(++itr));
+                maxNoOfRace = static_cast<uint32_t>(std::stoul(*(++itr)));
             } catch (std::exception& e) {
                 throw std::runtime_error("Invalid max number of Races");
             }

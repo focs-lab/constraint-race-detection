@@ -10,8 +10,8 @@
 
 class ModelLogger {
    private:
-    bool log_binary_witness_;
     Trace& trace_;
+    bool log_binary_witness_;
     std::ofstream log_file_;
     std::ofstream binary_log_file_;
 
@@ -44,8 +44,6 @@ class ModelLogger {
     }
 
     void logWitnessPrefix(const z3::model& m, const Event& e1, const Event& e2);
-    void logBinaryWitnessPrefix(const z3::model& m, const Event& e1,
-                                const Event& e2);
 
     static std::vector<std::vector<uint32_t>> readBinaryWitness(
         const std::string& file_path);

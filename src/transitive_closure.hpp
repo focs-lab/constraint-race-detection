@@ -46,7 +46,7 @@ class TransitiveClosure {
         uint32_t groupCount_;
 
        public:
-        Builder(int size) : groupCount_(0) { eventToGroup_.reserve(size); }
+        Builder(size_t size) : groupCount_(0) { eventToGroup_.reserve(size); }
 
         void createNewGroup(const Event& e) {
             eventToGroup_[e] = groupCount_++;
@@ -74,9 +74,9 @@ class TransitiveClosure {
                 hb[group1][group2] = true;
             }
 
-            for (int k = 0; k < groupCount_; k++) {
-                for (int i = 0; i < groupCount_; i++) {
-                    for (int j = 0; j < groupCount_; j++) {
+            for (size_t k = 0; k < groupCount_; k++) {
+                for (size_t i = 0; i < groupCount_; i++) {
+                    for (size_t j = 0; j < groupCount_; j++) {
                         hb[i][j] = hb[i][j] || (hb[i][k] && hb[k][j]);
                     }
                 }

@@ -22,7 +22,7 @@ void CasualModel::generateMHBConstraints() {
     for (const auto& thread : trace_.getThreads()) {
         std::vector<Event> events = thread.getEvents();
 
-        for (int i = 0; i < events.size(); ++i) {
+        for (size_t i = 0; i < events.size(); ++i) {
             if (i == 0) {
                 builder.createNewGroup(events[i]);
                 continue;
@@ -43,13 +43,13 @@ void CasualModel::generateMHBConstraints() {
         }
     }
 
-    for (const auto [forkEvent, beginEvent] : trace_.getForkBeginPairs()) {
+    for (const auto& [forkEvent, beginEvent] : trace_.getForkBeginPairs()) {
         mhb_constraints_.push_back(var_map_[getEventIdx(forkEvent)] <
                                    var_map_[getEventIdx(beginEvent)]);
         builder.addRelation(forkEvent, beginEvent);
     }
 
-    for (const auto [endEvent, joinEvent] : trace_.getEndJoinPairs()) {
+    for (const auto& [endEvent, joinEvent] : trace_.getEndJoinPairs()) {
         mhb_constraints_.push_back(var_map_[getEventIdx(endEvent)] <
                                    var_map_[getEventIdx(joinEvent)]);
         builder.addRelation(endEvent, joinEvent);
@@ -62,8 +62,8 @@ void CasualModel::generateMHBConstraints() {
 
 void CasualModel::generateLockConstraints() {
     for (const auto& [lockId, lockRegions] : trace_.getLockRegions()) {
-        for (int i = 0; i < lockRegions.size(); ++i) {
-            for (int j = i + 1; j < lockRegions.size(); ++j) {
+        for (size_t i = 0; i < lockRegions.size(); ++i) {
+            for (size_t j = i + 1; j < lockRegions.size(); ++j) {
                 const LockRegion& lr1 = lockRegions[i];
                 const LockRegion& lr2 = lockRegions[j];
 
@@ -252,7 +252,7 @@ uint32_t CasualModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
         s_.add(getEventPhiZ3Expr(read) == read_to_phi_conc_[phiConcOffset]);
     }
 
-    int i = 0;
+    size_t i = 0;
 
     for (const auto& race_con : race_constraints) {
         if (maxCOPCheck && i >= maxCOPCheck) break;

@@ -66,6 +66,10 @@ class Variable {
         }
     }
 
+    uint32_t getVariableId() const {
+        return var_id_;
+    }
+
     bool sameInitialValue(const Event& read) const {
         assert(read.getEventType() == Event::EventType::Read);
 
@@ -126,8 +130,8 @@ class Variable {
     std::vector<std::pair<Event, Event>> getCOP() const {
         std::vector<std::pair<Event, Event>> cop;
 
-        for (int i = 0; i < writes_.size(); ++i) {
-            for (int j = i + 1; j < writes_.size(); ++j) {
+        for (size_t i = 0; i < writes_.size(); ++i) {
+            for (size_t j = i + 1; j < writes_.size(); ++j) {
                 if (writes_[i].getThreadId() == writes_[j].getThreadId())
                     continue;
                 cop.emplace_back(writes_[i], writes_[j]);

@@ -17,7 +17,6 @@ class CasualModel {
     ModelLogger& logger_;
 
     bool log_witness_;
-    bool log_binary_witness_;
 
     z3::context c_;
     z3::solver s_;
@@ -108,7 +107,7 @@ class CasualModel {
          */
         badWrites.erase(
             std::remove_if(badWrites.begin(), badWrites.end(),
-                           [&badWrites, r, this](const Event& write) {
+                           [r, this](const Event& write) {
                                return hb(r, write);
                            }),
             badWrites.end());
@@ -130,19 +129,17 @@ class CasualModel {
     }
 
    public:
-    CasualModel(Trace& trace, ModelLogger& logger, bool log_witness,
-                bool log_binary_witness)
+    CasualModel(Trace& trace, ModelLogger& logger, bool log_witness)
         : trace_(trace),
           logger_(logger),
           log_witness_(log_witness),
-          log_binary_witness_(log_binary_witness),
-          lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()),
           c_(),
           s_(c_, "QF_IDL"),
           var_map_(c_),
           mhb_constraints_(c_),
           lock_constraints_(c_),
-          read_to_phi_conc_(c_) {
+          read_to_phi_conc_(c_),
+          lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()) {
         z3::params p(c_);
         p.set("auto_config", false);
         p.set("smt.arith.solver", (unsigned)1);

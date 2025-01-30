@@ -1,4 +1,11 @@
 #pragma once
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wall"
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#pragma GCC diagnostic ignored "-Wshadow"
+#pragma GCC diagnostic ignored "-Wuninitialized"
 
 #include <algorithm>
 #include <chrono>
@@ -424,3 +431,5 @@ class progbar_fancy {
   std::string _unit;
   bool _final;
 };
+
+#pragma GCC diagnostic pop

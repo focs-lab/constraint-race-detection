@@ -26,7 +26,7 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
         lockIdToThread;  // lock id -> thread id holding the lock
 
 
-    int i = 0;
+    size_t i = 0;
     for (auto e : witness) {
         if (i >= witness.size() - 2)
             break; // the last two events are the COP themselevs
@@ -117,20 +117,27 @@ int main(int argc, char* argv[]) {
             ModelLogger::readBinaryWitness(witnessPath);
 
         int i = 0;
-        int pass = 0;
-        int fail = 0;
+        
+        std::vector<int> failed_witness;
+
         for (auto witness : binaryWitness) {
             bool res = isWitnessConsistent(witness, trace);
 
             if (!res) {
-                std::cout << "inconsistent witness: " << i << "\n";
-                break;
+                failed_witness.push_back(i);
             }
 
             i++;
         }
 
-        if (i == binaryWitness.size())
+        if (failed_witness.size() > 0) {
+            std::cout << "Following witness failed: ";
+            for (int fail : failed_witness)
+                std::cout << fail << ", ";
+            std::cout << "\n";
+        }
+
+        if (failed_witness.size() == 0)
             std::cout << "all witness are consistent\n";
 
     } catch (std::exception& e) {
