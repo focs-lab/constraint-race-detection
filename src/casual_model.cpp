@@ -102,36 +102,45 @@ void CasualModel::generateLockConstraints() {
         for (int tid1 = 0; tid1 < threadIds.size(); ++tid1) {
             for (int tid2 = tid1 + 1; tid2 < threadIds.size(); ++tid2) {
                 uint32_t t1 = threadIds[tid1], t2 = threadIds[tid2];
-                log(LOG_INFO) << threadIds.size() << ", " << threadIdToLockRegions.at(t1).size() << ", " << threadIdToLockRegions.at(t2).size() << "\n";
                 for (int i = 0; i < threadIdToLockRegions.at(t1).size(); ++i) {
                     const LockRegion& lr1 = threadIdToLockRegions.at(t1)[i];
-                    for (int j = 0; j < threadIdToLockRegions.at(t2).size() - 1;
+                    for (int j = 0; j < threadIdToLockRegions.at(t2).size();
                          ++j) {
                         const LockRegion& lr2 = threadIdToLockRegions.at(t2)[j];
                         z3::expr condition =
                             var_map_[getEventIdx(lr1.getRelEvent())] <
                             var_map_[getEventIdx(lr2.getAcqEvent())];
-                        const LockRegion& lr3 = threadIdToLockRegions.at(t2)[j+1];
-                        z3::expr result = var_map_[getEventIdx(lr1.getRelEvent())] <
+                        for (int z = j + 1;
+                             z < threadIdToLockRegions.at(t2).size(); ++z) {
+                            const LockRegion& lr3 =
+                                threadIdToLockRegions.at(t2)[z];
+                            z3::expr result =
+                                var_map_[getEventIdx(lr1.getRelEvent())] <
                                 var_map_[getEventIdx(lr3.getAcqEvent())];
-                        lock_constraints_.push_back(
+                            lock_constraints_.push_back(
                                 implies(condition, result));
+                        }
                     }
                 }
 
                 for (int i = 0; i < threadIdToLockRegions.at(t2).size(); ++i) {
                     const LockRegion& lr1 = threadIdToLockRegions.at(t2)[i];
-                    for (int j = 0; j < threadIdToLockRegions.at(t1).size() - 1;
+                    for (int j = 0; j < threadIdToLockRegions.at(t1).size();
                          ++j) {
                         const LockRegion& lr2 = threadIdToLockRegions.at(t1)[j];
                         z3::expr condition =
                             var_map_[getEventIdx(lr1.getRelEvent())] <
                             var_map_[getEventIdx(lr2.getAcqEvent())];
-                        const LockRegion& lr3 = threadIdToLockRegions.at(t1)[j+1];
-                        z3::expr result = var_map_[getEventIdx(lr1.getRelEvent())] <
+                        for (int z = 0; z < threadIdToLockRegions.at(t1).size();
+                             ++z) {
+                            const LockRegion& lr3 =
+                                threadIdToLockRegions.at(t1)[z];
+                            z3::expr result =
+                                var_map_[getEventIdx(lr1.getRelEvent())] <
                                 var_map_[getEventIdx(lr3.getAcqEvent())];
-                        lock_constraints_.push_back(
+                            lock_constraints_.push_back(
                                 implies(condition, result));
+                        }
                     }
                 }
             }
@@ -143,10 +152,10 @@ void CasualModel::generateLockConstraints() {
     auto end = std::chrono::high_resolution_clock::now();
 
     log(LOG_INFO) << "Lock constraints generation time: "
-                   << std::chrono::duration_cast<std::chrono::milliseconds>(
-                          end - start)
-                          .count()
-                   << "\n";
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         end - start)
+                         .count()
+                  << "\n";
 }
 
 z3::expr CasualModel::getPhiConc(Event e, bool track) {
