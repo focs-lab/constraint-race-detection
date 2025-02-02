@@ -40,7 +40,7 @@ BENCHMARK_TRACES=(
     "wronglock"
 )
 
-PREDICTOR_EXEC="$PROGRAM --log-binary-witness -f"
+PREDICTOR_EXEC="$PROGRAM -f"
 VERIFIER_EXEC="$VERIFIER -f"
 
 for trace in "${BENCHMARK_TRACES[@]}"; do
@@ -51,7 +51,7 @@ for trace in "${BENCHMARK_TRACES[@]}"; do
     fi
 
     echo "Running $trace"
-    gtimeout $TIMEOUT $VERIFIER_EXEC "$TRACES_DIR/$trace" 2>&1
+    gtimeout $TIMEOUT $PREDICTOR_EXEC "$TRACES_DIR/$trace" 2>&1
     EXIT_CODE=$?
 
     if [ $EXIT_CODE -eq 124 ]; then
