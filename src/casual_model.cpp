@@ -84,6 +84,17 @@ void CasualModel::generateLockConstraints() {
                     var_map_[getEventIdx(lr1.getAcqEvent())];
 
                 lock_constraints_.push_back(rel1_lt_acq2 ^ rel2_lt_acq1);
+
+                z3::expr implication1 =
+                    var_map_[getEventIdx(lr2.getAcqEvent())] <
+                    var_map_[getEventIdx(lr1.getRelEvent())];
+
+                z3::expr implication2 =
+                    var_map_[getEventIdx(lr1.getAcqEvent())] <
+                    var_map_[getEventIdx(lr2.getRelEvent())];
+
+                lock_constraints_.push_back(implies(rel1_lt_acq2, !implication1));
+                lock_constraints_.push_back(implies(rel2_lt_acq1, !implication2));
             }
         }
     }
@@ -95,7 +106,8 @@ z3::expr CasualModel::getPhiConc(Event e) {
     LOG_INIT_COUT();
     assert(e.getEventType() == Event::EventType::Read);
 
-    if (read_to_phi_conc_offset_.find(e.getEventId()) == read_to_phi_conc_offset_.end()) {
+    if (read_to_phi_conc_offset_.find(e.getEventId()) ==
+        read_to_phi_conc_offset_.end()) {
         read_to_phi_conc_offset_[e.getEventId()] = read_to_phi_conc_.size();
         read_to_phi_conc_.push_back(getEventPhiZ3Expr(e));
 
@@ -104,7 +116,8 @@ z3::expr CasualModel::getPhiConc(Event e) {
 
         z3::expr phiConc = phiAbs & phiSC;
 
-        read_to_phi_conc_.set(read_to_phi_conc_offset_[e.getEventId()], phiConc);
+        read_to_phi_conc_.set(read_to_phi_conc_offset_[e.getEventId()],
+                              phiConc);
     }
 
     return getEventPhiZ3Expr(e);
