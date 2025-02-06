@@ -50,6 +50,9 @@ class Trace {
     std::vector<std::pair<Event, Event>> getCOPs() const;
     std::vector<std::pair<Event, Event>> getForkBeginPairs() const;
     std::vector<std::pair<Event, Event>> getEndJoinPairs() const;
+    std::vector<std::pair<Event, Event>> getUniqueWriterPairs() const;
+
+    const Variable& getVariable(uint32_t var_id) const;
 
     Thread getThread(uint32_t thread_id) const;
     std::vector<Thread> getThreads() const;

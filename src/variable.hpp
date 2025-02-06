@@ -15,11 +15,11 @@ class Variable {
     std::vector<Event> writes_;
 
     std::unordered_map<uint32_t, std::vector<Event>> var_val_to_write_events_;
+    std::unordered_map<uint32_t, std::vector<Event>> var_val_to_read_events_;
     std::unordered_map<uint32_t, std::vector<Event>> tid_to_read_events_;
     std::unordered_map<uint32_t, std::vector<Event>> tid_to_write_events_;
     std::unordered_map<EID, Event> read_to_prev_write_in_thread_;
-    std::unordered_map<EID, Event>
-        read_to_prev_diff_read_in_thread_;
+    std::unordered_map<EID, Event> read_to_prev_diff_read_in_thread_;
 
    public:
     Variable() = default;
@@ -54,6 +54,8 @@ class Variable {
                 read_to_prev_write_in_thread_[e.getEventId()] =
                     tid_to_write_events_.at(e.getThreadId()).back();
             }
+
+            var_val_to_read_events_[e.getTargetValue()].push_back(e);
         } else if (e.getEventType() == Event::EventType::Write) {
             writes_.push_back(e);
 
@@ -66,9 +68,7 @@ class Variable {
         }
     }
 
-    uint32_t getVariableId() const {
-        return var_id_;
-    }
+    uint32_t getVariableId() const { return var_id_; }
 
     bool sameInitialValue(const Event& read) const {
         assert(read.getEventType() == Event::EventType::Read);
@@ -77,6 +77,24 @@ class Variable {
 
         return read.getTargetValue() == first_read_.getTargetValue();
     };
+
+    bool isUniqueWriter(const Event& write) const {
+        assert(write.getEventType() == Event::EventType::Write);
+
+        if (!Event::isNullEvent(first_read_) &&
+            first_read_.getTargetValue() == write.getTargetValue())
+            return false;
+
+        return var_val_to_write_events_.at(write.getTargetValue()).size() == 1;
+    }
+
+    bool hasUniqueWriter(const Event& read) const {
+        assert(read.getEventType() == Event::EventType::Read);
+
+        if (sameInitialValue(read)) return false;
+
+        return var_val_to_write_events_.at(read.getTargetValue()).size() == 1;
+    }
 
     const std::vector<Event> getGoodWrites(const Event& read) const {
         assert(read.getEventType() == Event::EventType::Read);
@@ -109,7 +127,7 @@ class Variable {
         assert(e.getEventType() == Event::EventType::Read);
 
         if (read_to_prev_write_in_thread_.find(e.getEventId()) ==
-            read_to_prev_write_in_thread_.end()) {;
+            read_to_prev_write_in_thread_.end()) {
             return Event();  // no prev write so return null event
         }
 
@@ -145,5 +163,25 @@ class Variable {
         }
 
         return cop;
+    }
+
+    std::vector<std::pair<Event, Event>> getUniqueWriterPairs() const {
+        std::vector<std::pair<Event, Event>> res;
+
+        for (auto const& [val, writes] : var_val_to_write_events_) {
+            if (writes.size() > 1) continue;
+
+            assert(writes.size() == 1);
+
+            if (var_val_to_read_events_.find(val) ==
+                var_val_to_read_events_.end())
+                continue;
+
+            for (auto const& read : var_val_to_read_events_.at(val)) {
+                res.emplace_back(writes[0], read);
+            }
+        }
+
+        return res;
     }
 };

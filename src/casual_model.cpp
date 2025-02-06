@@ -2,10 +2,23 @@
 
 void CasualModel::filterCOPs() {
     for (const auto& [e1, e2] : trace_.getCOPs()) {
+        if (lockset_engine_.hasCommonLock(e1, e2)) continue;
+
+        const Variable& var = trace_.getVariable(e1.getTargetId());
+
+        if (e1.getEventType() == Event::EventType::Read &&
+            var.hasUniqueWriter(e1)) {
+            filtered_cop_events_.push_back({e1, e2});
+            continue;
+        } else if (e2.getEventType() == Event::EventType::Read &&
+                   var.hasUniqueWriter(e2)) {
+            filtered_cop_events_.push_back({e1, e2});
+            continue;
+        }
+
         if (mhb_closure_.happensBefore(e1, e2) ||
             mhb_closure_.happensBefore(e2, e1))
             continue;
-        if (lockset_engine_.hasCommonLock(e1, e2)) continue;
         filtered_cop_events_.push_back({e1, e2});
     }
 }
@@ -33,12 +46,34 @@ void CasualModel::generateMHBConstraints() {
             mhb_constraints_.push_back(var_map_[getEventIdx(e1)] <
                                        var_map_[getEventIdx(e2)]);
 
-            if (e1.getEventType() == Event::EventType::Fork ||
-                e2.getEventType() == Event::EventType::Join) {
-                builder.createNewGroup(e2);
-                builder.addRelation(e1, e2);
-            } else {
-                builder.addToGroup(e2, e1);
+            bool tmp = true;
+
+            if (e1.getEventType() == Event::EventType::Write) {
+                const Variable& e1var = trace_.getVariable(e1.getTargetId());
+
+                if (e1var.isUniqueWriter(e1)) {
+                    tmp = false;
+                    builder.createNewGroup(e2);
+                    builder.addRelation(e1, e2);
+                }
+            } else if (e1.getEventType() == Event::EventType::Read) {
+                const Variable& e1var = trace_.getVariable(e1.getTargetId());
+
+                if (e1var.hasUniqueWriter(e1)) {
+                    tmp = false;
+                    builder.createNewGroup(e2);
+                    builder.addRelation(e1, e2);
+                }
+            }
+
+            if (tmp) {
+                if (e1.getEventType() == Event::EventType::Fork ||
+                    e2.getEventType() == Event::EventType::Join) {
+                    builder.createNewGroup(e2);
+                    builder.addRelation(e1, e2);
+                } else {
+                    builder.addToGroup(e2, e1);
+                }
             }
         }
     }
@@ -53,6 +88,10 @@ void CasualModel::generateMHBConstraints() {
         mhb_constraints_.push_back(var_map_[getEventIdx(endEvent)] <
                                    var_map_[getEventIdx(joinEvent)]);
         builder.addRelation(endEvent, joinEvent);
+    }
+
+    for (const auto& [writer, reader] : trace_.getUniqueWriterPairs()) {
+        builder.addRelation(writer, reader);
     }
 
     mhb_closure_ = builder.build();
@@ -95,7 +134,8 @@ z3::expr CasualModel::getPhiConc(Event e) {
     LOG_INIT_COUT();
     assert(e.getEventType() == Event::EventType::Read);
 
-    if (read_to_phi_conc_offset_.find(e.getEventId()) == read_to_phi_conc_offset_.end()) {
+    if (read_to_phi_conc_offset_.find(e.getEventId()) ==
+        read_to_phi_conc_offset_.end()) {
         read_to_phi_conc_offset_[e.getEventId()] = read_to_phi_conc_.size();
         read_to_phi_conc_.push_back(getEventPhiZ3Expr(e));
 
@@ -104,7 +144,8 @@ z3::expr CasualModel::getPhiConc(Event e) {
 
         z3::expr phiConc = phiAbs & phiSC;
 
-        read_to_phi_conc_.set(read_to_phi_conc_offset_[e.getEventId()], phiConc);
+        read_to_phi_conc_.set(read_to_phi_conc_offset_[e.getEventId()],
+                              phiConc);
     }
 
     return getEventPhiZ3Expr(e);
@@ -239,6 +280,8 @@ uint32_t CasualModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
     LOG_INIT_COUT();
 
     z3::expr_vector race_constraints(c_);
+
+    log(LOG_INFO) << "cop_events: " << filtered_cop_events_.size() << "\n";
 
     for (const auto& [e1, e2] : filtered_cop_events_) {
         z3::expr e1_expr = var_map_[getEventIdx(e1)];

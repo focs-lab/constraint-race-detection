@@ -195,6 +195,17 @@ std::vector<std::pair<Event, Event>> Trace::getEndJoinPairs() const {
     return end_join_pairs_;
 }
 
+std::vector<std::pair<Event, Event>> Trace::getUniqueWriterPairs() const {
+    std::vector<std::pair<Event, Event>> res;
+
+    for (auto& [_, var] : var_id_to_variable_) {
+        std::vector<std::pair<Event, Event>> uniqueWriterPairs = var.getUniqueWriterPairs();
+        res.insert(res.end(), uniqueWriterPairs.begin(), uniqueWriterPairs.end());
+    }
+
+    return res;
+}
+
 std::unordered_map<uint32_t, std::vector<LockRegion>> Trace::getLockRegions()
     const {
     return lock_id_to_lock_region_;
@@ -212,6 +223,11 @@ Trace::getThreadIdToLockIdToLockRegions() const {
         }
     }
     return res;
+}
+
+const Variable& Trace::getVariable(uint32_t var_id) const {
+    assert(var_id_to_variable_.find(var_id) != var_id_to_variable_.end());
+    return var_id_to_variable_.at(var_id);
 }
 
 Thread Trace::getThread(uint32_t thread_id) const {
