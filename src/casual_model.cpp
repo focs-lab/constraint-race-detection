@@ -46,34 +46,48 @@ void CasualModel::generateMHBConstraints() {
             mhb_constraints_.push_back(var_map_[getEventIdx(e1)] <
                                        var_map_[getEventIdx(e2)]);
 
-            bool tmp = true;
-
             if (e1.getEventType() == Event::EventType::Write) {
                 const Variable& e1var = trace_.getVariable(e1.getTargetId());
 
                 if (e1var.isUniqueWriter(e1)) {
-                    tmp = false;
+                    /* case 1: e1 is uw and e2 can be anything so make a separate group for e2 */
                     builder.createNewGroup(e2);
                     builder.addRelation(e1, e2);
-                }
-            } else if (e1.getEventType() == Event::EventType::Read) {
-                const Variable& e1var = trace_.getVariable(e1.getTargetId());
+                } else if (e2.getEventType() == Event::EventType::Read) {
+                    const Variable& e2var = trace_.getVariable(e2.getTargetId());
 
-                if (e1var.hasUniqueWriter(e1)) {
-                    tmp = false;
-                    builder.createNewGroup(e2);
-                    builder.addRelation(e1, e2);
+                    if (e2var.hasUniqueWriter(e2)) {
+                        /* case 2: e1 is not uw but e2 is ur */
+                        builder.createNewGroup(e2);
+                        builder.addRelation(e1, e2);
+                    } else {
+                        builder.addToGroup(e2, e1);
+                    }
+                } else {
+                    builder.addToGroup(e2, e1);
                 }
-            }
+                continue;
+            } 
 
-            if (tmp) {
-                if (e1.getEventType() == Event::EventType::Fork ||
-                    e2.getEventType() == Event::EventType::Join) {
+            if (e2.getEventType() == Event::EventType::Read) {
+                const Variable& e2var = trace_.getVariable(e2.getTargetId());
+
+                if (e2var.hasUniqueWriter(e2)) {
+                    /* case 3: e1 is anything but e2 is ur */
                     builder.createNewGroup(e2);
                     builder.addRelation(e1, e2);
                 } else {
                     builder.addToGroup(e2, e1);
                 }
+                continue;
+            }
+
+            if (e1.getEventType() == Event::EventType::Fork ||
+                e2.getEventType() == Event::EventType::Join) {
+                builder.createNewGroup(e2);
+                builder.addRelation(e1, e2);
+            } else {
+                builder.addToGroup(e2, e1);
             }
         }
     }
