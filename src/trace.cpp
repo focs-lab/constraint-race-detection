@@ -174,7 +174,7 @@ Trace Trace::fromTextFile(const std::string& filename) {
     return createTrace(raw_events);
 }
 
-std::vector<Event> Trace::getAllEvents() const { return all_events_; }
+const std::vector<Event>& Trace::getAllEvents() const { return all_events_; }
 
 std::vector<std::pair<Event, Event>> Trace::getCOPs() const {
     std::vector<std::pair<Event, Event>> cops;

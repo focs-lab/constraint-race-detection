@@ -4,12 +4,13 @@
 #include <utility>
 #include <vector>
 
-#include "BSlogger.hpp"
+#include "logger.hpp"
 #include "event.hpp"
 #include "lockset_engine.hpp"
 #include "model_logger.hpp"
 #include "trace.hpp"
 #include "transitive_closure.hpp"
+#include "vec_transitive_closure.hpp"
 
 class CasualModel {
    private:
@@ -29,7 +30,8 @@ class CasualModel {
     std::unordered_map<EID, uint32_t> read_to_phi_conc_offset_;
 
     LocksetEngine lockset_engine_;
-    TransitiveClosure mhb_closure_;
+    // TransitiveClosure mhb_closure_;
+    VecTransitiveClosure hb_closure_;
 
     std::vector<std::pair<Event, Event>> filtered_cop_events_;
 
@@ -58,7 +60,7 @@ class CasualModel {
     }
 
     inline bool hb(const Event& e1, const Event& e2) {
-        return mhb_closure_.happensBefore(e1, e2) ||
+        return hb_closure_.happensBefore(e1, e2) ||
                (e1.getThreadId() == e2.getThreadId() &&
                 e1.getEventId() < e2.getEventId());
     }
@@ -86,6 +88,7 @@ class CasualModel {
         /* Filter out good writes w s.t. w < w' < r where w' is another good
          * write or if r < w.
          */
+        // TODO: can we also filter out all w < w' < r where w' is actually a bad write?
         goodWrites.erase(
             std::remove_if(goodWrites.begin(), goodWrites.end(),
                            [&goodWrites, r, this](const Event& write) {
@@ -105,12 +108,12 @@ class CasualModel {
                                        const Event& r) {
         /* Filter out bad writes w' s.t. e < w'
          */
-        badWrites.erase(
-            std::remove_if(badWrites.begin(), badWrites.end(),
-                           [r, this](const Event& write) {
-                               return hb(r, write);
-                           }),
-            badWrites.end());
+        // TODO: can we also filter out all w' < w < r where w is some good write?
+        badWrites.erase(std::remove_if(badWrites.begin(), badWrites.end(),
+                                       [r, this](const Event& write) {
+                                           return hb(r, write);
+                                       }),
+                        badWrites.end());
     }
 
     inline void prevWriteExistFilter(std::vector<Event>& writes,
@@ -129,7 +132,8 @@ class CasualModel {
     }
 
    public:
-    CasualModel(Trace& trace, ModelLogger& logger, bool log_witness)
+    CasualModel(Trace& trace, VecTransitiveClosure vc_hb, ModelLogger& logger,
+                bool log_witness)
         : trace_(trace),
           logger_(logger),
           log_witness_(log_witness),
@@ -139,7 +143,8 @@ class CasualModel {
           mhb_constraints_(c_),
           lock_constraints_(c_),
           read_to_phi_conc_(c_),
-          lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()) {
+          lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()),
+          hb_closure_(vc_hb) {
         z3::params p(c_);
         p.set("auto_config", false);
         p.set("smt.arith.solver", (unsigned)1);

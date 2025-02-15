@@ -1,10 +1,7 @@
 #include "model_logger.hpp"
 
-#include "BSlogger.hpp"
-
 void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
                                    const Event& e2) {
-    LOG_INIT_COUT();
     std::vector<Event> events = trace_.getAllEvents();
     std::vector<std::pair<std::string, int>> event_order;
     int e1Idx, e2Idx;
@@ -26,19 +23,20 @@ void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
             uint32_t eid = static_cast<uint32_t>(std::stoul(name));
             Event e = trace_.getEvent(eid);
 
-            if (value.bool_value() == 1)
-                continue;
+            if (value.bool_value() == 1) continue;
 
-            if (firstInfeasibleEventInThread[e.getThreadId()] == 0) 
+            if (firstInfeasibleEventInThread[e.getThreadId()] == 0)
                 firstInfeasibleEventInThread[e.getThreadId()] = eid;
 
-            if (!Event::isNullEvent(trace_.getThread(e.getThreadId()).getPrevAcq(e)))
-                eid = trace_.getThread(e.getThreadId()).getPrevAcq(e).getEventId();
-            
-            firstInfeasibleEventInThread[e.getThreadId()] = std::min(eid, firstInfeasibleEventInThread[e.getThreadId()]);
-        }
+            if (!Event::isNullEvent(
+                    trace_.getThread(e.getThreadId()).getPrevAcq(e)))
+                eid = trace_.getThread(e.getThreadId())
+                          .getPrevAcq(e)
+                          .getEventId();
 
-        // log(LOG_INFO) << firstInfeasibleEventInThread[1] << "\n";
+            firstInfeasibleEventInThread[e.getThreadId()] =
+                std::min(eid, firstInfeasibleEventInThread[e.getThreadId()]);
+        }
 
         if (!v.range().is_int()) continue;
 
@@ -63,8 +61,9 @@ void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
                   return a.second < b.second;
               });
 
-    log_file_ << "Witness for: e" << e1.getEventId() << " - e"
-              << e2.getEventId() << "\n";
+    if (log_readable_witness_)
+        log_file_ << "Witness for: e" << e1.getEventId() << " - e"
+                  << e2.getEventId() << "\n";
 
     int j = 1;
     std::vector<uint32_t> witness;
@@ -72,18 +71,21 @@ void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
         uint32_t eid = static_cast<uint32_t>(std::stoul(name));
         Event e = trace_.getEvent(eid);
 
-        assert(firstInfeasibleEventInThread.find(e.getThreadId()) != firstInfeasibleEventInThread.end());
+        assert(firstInfeasibleEventInThread.find(e.getThreadId()) !=
+               firstInfeasibleEventInThread.end());
 
-        if (firstInfeasibleEventInThread[e.getThreadId()] != 0 && firstInfeasibleEventInThread[e.getThreadId()] <= eid)
+        if (firstInfeasibleEventInThread[e.getThreadId()] != 0 &&
+            firstInfeasibleEventInThread[e.getThreadId()] <= eid)
             continue;
 
         if (order > e1Idx || order > e2Idx) break;
         if (eid == e1.getEventId() || eid == e2.getEventId()) continue;
 
-        if (log_binary_witness_)
-            witness.push_back(static_cast<uint32_t>(std::stoul(name)));
-        log_file_ << j++ << ": e" << name << " - " << events[eid-1].prettyString()
-                  << "\n";
+        if (log_binary_witness_) witness.push_back(eid);
+
+        if (log_readable_witness_)
+            log_file_ << j++ << ": e" << name << " - "
+                      << events[eid - 1].prettyString() << "\n";
     }
 
     if (e1Idx < e2Idx) {
@@ -91,49 +93,63 @@ void ModelLogger::logWitnessPrefix(const z3::model& m, const Event& e1,
             witness.push_back(e1.getEventId());
             witness.push_back(e2.getEventId());
         }
-        
-        log_file_ << j++ << ": e" << e1.getEventId() << " - "
-                  << e1.prettyString() << "\n";
-        log_file_ << j++ << ": e" << e2.getEventId() << " - "
-                  << e2.prettyString() << "\n";
+
+        if (log_readable_witness_) {
+            log_file_ << j++ << ": e" << e1.getEventId() << " - "
+                      << e1.prettyString() << "\n";
+            log_file_ << j++ << ": e" << e2.getEventId() << " - "
+                      << e2.prettyString() << "\n";
+        }
     } else {
         if (log_binary_witness_) {
             witness.push_back(e2.getEventId());
             witness.push_back(e1.getEventId());
         }
+
+        if (log_readable_witness_) {
+            log_file_ << j++ << ": e" << e2.getEventId() << " - "
+                      << e2.prettyString() << "\n";
+            log_file_ << j++ << ": e" << e1.getEventId() << " - "
+                      << e1.prettyString() << "\n";
+        }
+    }
+
+    if (log_binary_witness_) 
+        writeBinaryWitness(witness);
+
+    if (log_readable_witness_)
+        log_file_ << "------------------------------------------------------\n";
+}
+
+void ModelLogger::writeBinaryWitness(const std::vector<uint32_t>& witness) {
+    if (!binary_log_file_.is_open())
+        throw std::runtime_error("Binary witness file not open");
         
-        log_file_ << j++ << ": e" << e2.getEventId() << " - "
-                  << e2.prettyString() << "\n";
-        log_file_ << j++ << ": e" << e1.getEventId() << " - "
-                  << e1.prettyString() << "\n";
-    }
-
-    if (log_binary_witness_) {
-        size_t size = witness.size();
-        binary_log_file_.write(reinterpret_cast<const char*>(&size),
-                            sizeof(size_t));
-        binary_log_file_.write(reinterpret_cast<const char*>(witness.data()),
-                            static_cast<std::streamsize>(size * sizeof(uint32_t)));
-    }
-
-    log_file_ << "------------------------------------------------------\n";
+    uint32_t witness_size = static_cast<uint32_t>(witness.size());
+    binary_log_file_.write(reinterpret_cast<const char*>(&witness_size), sizeof(uint32_t));
+    binary_log_file_.write(reinterpret_cast<const char*>(witness.data()), witness_size * sizeof(uint32_t));
 }
 
 std::vector<std::vector<uint32_t>> ModelLogger::readBinaryWitness(
     const std::string& file_path) {
     std::ifstream file(file_path, std::ios::binary);
-    if (!file.is_open()) {
+    if (!file.is_open())
         throw std::runtime_error("Failed to open binary witness file");
-    }
 
     std::vector<std::vector<uint32_t>> witnesses;
-    while (file.peek() != EOF) {
-        uint32_t size;
-        file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-        std::vector<uint32_t> witness(size);
-        file.read(reinterpret_cast<char*>(witness.data()),
-                  size * sizeof(uint32_t));
-        witnesses.push_back(witness);
+
+    while (true) {
+        uint32_t witness_size;
+        
+        if (!file.read(reinterpret_cast<char*>(&witness_size), sizeof(uint32_t)))
+            break;
+
+        std::vector<uint32_t> witness(witness_size);
+
+        if (!file.read(reinterpret_cast<char*>(witness.data()), witness_size * sizeof(uint32_t)))
+            throw std::runtime_error("File is corrupted or incomplete.");
+
+        witnesses.push_back(std::move(witness));
     }
 
     return witnesses;

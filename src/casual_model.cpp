@@ -16,8 +16,8 @@ void CasualModel::filterCOPs() {
             continue;
         }
 
-        if (mhb_closure_.happensBefore(e1, e2) ||
-            mhb_closure_.happensBefore(e2, e1))
+        if (hb_closure_.happensBefore(e1, e2) ||
+            hb_closure_.happensBefore(e2, e1))
             continue;
         filtered_cop_events_.push_back({e1, e2});
     }
@@ -30,14 +30,14 @@ void CasualModel::generateZ3VarMap() {
 }
 
 void CasualModel::generateMHBConstraints() {
-    TransitiveClosure::Builder builder(trace_.getAllEvents().size());
+    // TransitiveClosure::Builder builder(trace_.getAllEvents().size());
 
     for (const auto& thread : trace_.getThreads()) {
         std::vector<Event> events = thread.getEvents();
 
         for (size_t i = 0; i < events.size(); ++i) {
             if (i == 0) {
-                builder.createNewGroup(events[i]);
+                // builder.createNewGroup(events[i]);
                 continue;
             };
             Event e1 = events[i - 1];
@@ -46,69 +46,69 @@ void CasualModel::generateMHBConstraints() {
             mhb_constraints_.push_back(var_map_[getEventIdx(e1)] <
                                        var_map_[getEventIdx(e2)]);
 
-            if (e1.getEventType() == Event::EventType::Write) {
-                const Variable& e1var = trace_.getVariable(e1.getTargetId());
+            // if (e1.getEventType() == Event::EventType::Write) {
+            //     const Variable& e1var = trace_.getVariable(e1.getTargetId());
 
-                if (e1var.isUniqueWriter(e1)) {
-                    /* case 1: e1 is uw and e2 can be anything so make a separate group for e2 */
-                    builder.createNewGroup(e2);
-                    builder.addRelation(e1, e2);
-                } else if (e2.getEventType() == Event::EventType::Read) {
-                    const Variable& e2var = trace_.getVariable(e2.getTargetId());
+            //     if (e1var.isUniqueWriter(e1)) {
+            //         /* case 1: e1 is uw and e2 can be anything so make a separate group for e2 */
+            //         builder.createNewGroup(e2);
+            //         builder.addRelation(e1, e2);
+            //     } else if (e2.getEventType() == Event::EventType::Read) {
+            //         const Variable& e2var = trace_.getVariable(e2.getTargetId());
 
-                    if (e2var.hasUniqueWriter(e2)) {
-                        /* case 2: e1 is not uw but e2 is ur */
-                        builder.createNewGroup(e2);
-                        builder.addRelation(e1, e2);
-                    } else {
-                        builder.addToGroup(e2, e1);
-                    }
-                } else {
-                    builder.addToGroup(e2, e1);
-                }
-                continue;
-            } 
+            //         if (e2var.hasUniqueWriter(e2)) {
+            //             /* case 2: e1 is not uw but e2 is ur */
+            //             builder.createNewGroup(e2);
+            //             builder.addRelation(e1, e2);
+            //         } else {
+            //             builder.addToGroup(e2, e1);
+            //         }
+            //     } else {
+            //         builder.addToGroup(e2, e1);
+            //     }
+            //     continue;
+            // } 
 
-            if (e2.getEventType() == Event::EventType::Read) {
-                const Variable& e2var = trace_.getVariable(e2.getTargetId());
+            // if (e2.getEventType() == Event::EventType::Read) {
+            //     const Variable& e2var = trace_.getVariable(e2.getTargetId());
 
-                if (e2var.hasUniqueWriter(e2)) {
-                    /* case 3: e1 is anything but e2 is ur */
-                    builder.createNewGroup(e2);
-                    builder.addRelation(e1, e2);
-                } else {
-                    builder.addToGroup(e2, e1);
-                }
-                continue;
-            }
+            //     if (e2var.hasUniqueWriter(e2)) {
+            //         /* case 3: e1 is anything but e2 is ur */
+            //         builder.createNewGroup(e2);
+            //         builder.addRelation(e1, e2);
+            //     } else {
+            //         builder.addToGroup(e2, e1);
+            //     }
+            //     continue;
+            // }
 
-            if (e1.getEventType() == Event::EventType::Fork ||
-                e2.getEventType() == Event::EventType::Join) {
-                builder.createNewGroup(e2);
-                builder.addRelation(e1, e2);
-            } else {
-                builder.addToGroup(e2, e1);
-            }
+            // if (e1.getEventType() == Event::EventType::Fork ||
+            //     e2.getEventType() == Event::EventType::Join) {
+            //     builder.createNewGroup(e2);
+            //     builder.addRelation(e1, e2);
+            // } else {
+            //     builder.addToGroup(e2, e1);
+            // }
         }
     }
 
     for (const auto& [forkEvent, beginEvent] : trace_.getForkBeginPairs()) {
         mhb_constraints_.push_back(var_map_[getEventIdx(forkEvent)] <
                                    var_map_[getEventIdx(beginEvent)]);
-        builder.addRelation(forkEvent, beginEvent);
+        // builder.addRelation(forkEvent, beginEvent);
     }
 
     for (const auto& [endEvent, joinEvent] : trace_.getEndJoinPairs()) {
         mhb_constraints_.push_back(var_map_[getEventIdx(endEvent)] <
                                    var_map_[getEventIdx(joinEvent)]);
-        builder.addRelation(endEvent, joinEvent);
+        // builder.addRelation(endEvent, joinEvent);
     }
 
-    for (const auto& [writer, reader] : trace_.getUniqueWriterPairs()) {
-        builder.addRelation(writer, reader);
-    }
+    // for (const auto& [writer, reader] : trace_.getUniqueWriterPairs()) {
+    //     builder.addRelation(writer, reader);
+    // }
 
-    mhb_closure_ = builder.build();
+    // mhb_closure_ = builder.build();
 
     s_.add(mhb_constraints_);
 }
@@ -123,9 +123,9 @@ void CasualModel::generateLockConstraints() {
                 if (lr1.getRegionThreadId() == lr2.getRegionThreadId())
                     continue;
 
-                if (mhb_closure_.happensBefore(lr1.getRelEvent(),
+                if (hb_closure_.happensBefore(lr1.getRelEvent(),
                                                lr2.getAcqEvent()) ||
-                    mhb_closure_.happensBefore(lr2.getRelEvent(),
+                    hb_closure_.happensBefore(lr2.getRelEvent(),
                                                lr1.getAcqEvent()))
                     continue;
 
@@ -145,7 +145,6 @@ void CasualModel::generateLockConstraints() {
 }
 
 z3::expr CasualModel::getPhiConc(Event e) {
-    LOG_INIT_COUT();
     assert(e.getEventType() == Event::EventType::Read);
 
     if (read_to_phi_conc_offset_.find(e.getEventId()) ==
@@ -166,7 +165,6 @@ z3::expr CasualModel::getPhiConc(Event e) {
 }
 
 z3::expr CasualModel::getPhiAbs(Event e) {
-    LOG_INIT_COUT();
     Event prevRead = trace_.getPrevReadInThread(e);
 
     if (Event::isNullEvent(prevRead)) return c_.bool_val(true);
@@ -176,7 +174,6 @@ z3::expr CasualModel::getPhiAbs(Event e) {
 
 z3::expr CasualModel::getPhiSC(Event e) {
     assert(e.getEventType() == Event::EventType::Read);
-    LOG_INIT_COUT();
 
     std::vector<Event> goodWrites = trace_.getGoodWritesForRead(e);
     std::vector<Event> badWrites = trace_.getBadWritesForRead(e);
@@ -291,11 +288,8 @@ z3::expr CasualModel::getPhiSC(Event e) {
 
 uint32_t CasualModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
     uint32_t race_count = 0;
-    LOG_INIT_COUT();
 
     z3::expr_vector race_constraints(c_);
-
-    log(LOG_INFO) << "cop_events: " << filtered_cop_events_.size() << "\n";
 
     for (const auto& [e1, e2] : filtered_cop_events_) {
         z3::expr e1_expr = var_map_[getEventIdx(e1)];

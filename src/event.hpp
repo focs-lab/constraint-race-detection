@@ -40,6 +40,11 @@ class Event {
     Event(uint64_t raw_event_, uint32_t event_id_)
         : raw_event_(raw_event_), event_id_(event_id_) {}
 
+    Event(const Event& other) {
+        raw_event_ = other.raw_event_;
+        event_id_ = other.event_id_;
+    }
+
     inline EventType getEventType() const {
         return static_cast<EventType>((raw_event_ >> 60) & 0xF);
     }

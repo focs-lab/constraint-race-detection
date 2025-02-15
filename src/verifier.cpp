@@ -1,14 +1,13 @@
 #include <filesystem>
 #include <iostream>
 
-#include "BSlogger.hpp"
+#include "logger.hpp"
 #include "cmd_argument_parser.cpp"
 #include "model_logger.hpp"
 #include "trace.hpp"
 
 bool isWitnessConsistent(const std::vector<uint32_t>& witness,
                          const Trace& trace) {
-    LOG_INIT_COUT();
     std::vector<Event> events = trace.getAllEvents();
 
     std::unordered_map<uint32_t, uint32_t>
@@ -34,8 +33,6 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
         Event event = events[e - 1];
         uint32_t threadId = event.getThreadId();
 
-        // log(LOG_INFO) << event.prettyString() << "\n";
-
         if (threadEventTracker.find(threadId) == threadEventTracker.end()) {
             threadEventTracker[threadId] = 0;
         }
@@ -47,7 +44,6 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
         /* Check if all the preceding events in the same thread has occured */
         if (threadEvents[threadId][threadEventTracker[threadId]].getEventId() !=
             e) {
-            log(LOG_INFO) << "Thread check failed\n";
             return false;
         } else {
             threadEventTracker[threadId]++;
@@ -58,8 +54,6 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
             uint32_t lockId = event.getTargetId();
             if (lockIdToLockStatus.find(lockId) != lockIdToLockStatus.end() &&
                 !lockIdToLockStatus[lockId]) {
-                log(LOG_INFO) << "Lock Acquire failed.\n";
-                log(LOG_INFO) << "Event: " << event.getEventId() << "\n";
                 return false;
             }
             lockIdToLockStatus[event.getTargetId()] = false;
@@ -70,7 +64,6 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
                 lockIdToLockStatus[lockId] ||
                 lockIdToThread.find(lockId) == lockIdToThread.end() ||
                 lockIdToThread[lockId] != threadId) {
-                log(LOG_INFO) << "Lock Release failed\n";
                 return false;
             }
             lockIdToLockStatus[lockId] = true;
@@ -86,10 +79,6 @@ bool isWitnessConsistent(const std::vector<uint32_t>& witness,
             }
 
             if (variableIdToVal[varId] != event.getTargetValue()) {
-                log(LOG_INFO) << "Variable Read failed for: " << event.getEventId() << "\n";
-                log(LOG_INFO) << "Expected: " << variableIdToVal[varId]
-                              << " Got: " << event.getTargetValue() << "\n";
-                log(LOG_INFO) << "varId: " << event.getTargetId() << "\n";
                 return false;
             }
         } else if (event.getEventType() == Event::EventType::Write) {
@@ -135,6 +124,7 @@ int main(int argc, char* argv[]) {
             for (int fail : failed_witness)
                 std::cout << fail << ", ";
             std::cout << "\n";
+            LOG("Failed witness count: ", failed_witness.size());
         }
 
         if (failed_witness.size() == 0)

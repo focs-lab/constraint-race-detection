@@ -43,7 +43,7 @@ class Trace {
     static Trace fromBinaryFile(const std::string& filename);
     static Trace fromTextFile(const std::string& filename);
 
-    std::vector<Event> getAllEvents() const;
+    const std::vector<Event>& getAllEvents() const;
     std::vector<Event> getGoodWritesForRead(const Event& read) const;
     std::vector<Event> getBadWritesForRead(const Event& read) const;
 
