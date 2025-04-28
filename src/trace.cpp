@@ -255,9 +255,24 @@ std::vector<Event> Trace::getBadWritesForRead(const Event& read) const {
     return var_id_to_variable_.at(read.getTargetId()).getBadWrites(read);
 }
 
+std::vector<Event> Trace::getAllReads() const {
+    std::vector<Event> allReads;
+
+    for (const auto& [_, var] : var_id_to_variable_) {
+        std::vector<Event> varReads = var.getReads();
+        allReads.insert(allReads.end(), varReads.begin(), varReads.end());
+    }
+
+    return allReads;
+}
+
 Event Trace::getEvent(uint32_t eid) const {
     assert(eid >= 1 && eid <= all_events_.size());
     return all_events_[eid - 1]; // minus 1 since eid are starting from 1
+}
+
+Event Trace::getPrevEventInThread(const Event& e) const {
+    return thread_id_to_thread_.at(e.getThreadId()).getPrevEvent(e);
 }
 
 Event Trace::getPrevReadInThread(const Event& e) const {

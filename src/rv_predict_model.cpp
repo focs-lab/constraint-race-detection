@@ -1,6 +1,6 @@
-#include "casual_model.hpp"
+#include "rv_predict_model.hpp"
 
-void CasualModel::filterCOPs() {
+void RVPredictModel::filterCOPs() {
     for (const auto& [e1, e2] : trace_.getCOPs()) {
         if (lockset_engine_.hasCommonLock(e1, e2)) continue;
 
@@ -23,13 +23,13 @@ void CasualModel::filterCOPs() {
     }
 }
 
-void CasualModel::generateZ3VarMap() {
+void RVPredictModel::generateZ3VarMap() {
     for (const auto& event : trace_.getAllEvents()) {
         var_map_.push_back(getEventOrderZ3Expr(event));
     }
 }
 
-void CasualModel::generateMHBConstraints() {
+void RVPredictModel::generateMHBConstraints() {
     // TransitiveClosure::Builder builder(trace_.getAllEvents().size());
 
     for (const auto& thread : trace_.getThreads()) {
@@ -50,11 +50,12 @@ void CasualModel::generateMHBConstraints() {
             //     const Variable& e1var = trace_.getVariable(e1.getTargetId());
 
             //     if (e1var.isUniqueWriter(e1)) {
-            //         /* case 1: e1 is uw and e2 can be anything so make a separate group for e2 */
-            //         builder.createNewGroup(e2);
+            //         /* case 1: e1 is uw and e2 can be anything so make a
+            //         separate group for e2 */ builder.createNewGroup(e2);
             //         builder.addRelation(e1, e2);
             //     } else if (e2.getEventType() == Event::EventType::Read) {
-            //         const Variable& e2var = trace_.getVariable(e2.getTargetId());
+            //         const Variable& e2var =
+            //         trace_.getVariable(e2.getTargetId());
 
             //         if (e2var.hasUniqueWriter(e2)) {
             //             /* case 2: e1 is not uw but e2 is ur */
@@ -67,7 +68,7 @@ void CasualModel::generateMHBConstraints() {
             //         builder.addToGroup(e2, e1);
             //     }
             //     continue;
-            // } 
+            // }
 
             // if (e2.getEventType() == Event::EventType::Read) {
             //     const Variable& e2var = trace_.getVariable(e2.getTargetId());
@@ -113,7 +114,7 @@ void CasualModel::generateMHBConstraints() {
     s_.add(mhb_constraints_);
 }
 
-void CasualModel::generateLockConstraints() {
+void RVPredictModel::generateLockConstraints() {
     for (const auto& [lockId, lockRegions] : trace_.getLockRegions()) {
         for (size_t i = 0; i < lockRegions.size(); ++i) {
             for (size_t j = i + 1; j < lockRegions.size(); ++j) {
@@ -124,9 +125,9 @@ void CasualModel::generateLockConstraints() {
                     continue;
 
                 if (hb_closure_.happensBefore(lr1.getRelEvent(),
-                                               lr2.getAcqEvent()) ||
+                                              lr2.getAcqEvent()) ||
                     hb_closure_.happensBefore(lr2.getRelEvent(),
-                                               lr1.getAcqEvent()))
+                                              lr1.getAcqEvent()))
                     continue;
 
                 z3::expr rel1_lt_acq2 =
@@ -144,7 +145,7 @@ void CasualModel::generateLockConstraints() {
     s_.add(lock_constraints_);
 }
 
-z3::expr CasualModel::getPhiConc(Event e) {
+z3::expr RVPredictModel::getPhiConc(Event e) {
     assert(e.getEventType() == Event::EventType::Read);
 
     if (read_to_phi_conc_offset_.find(e.getEventId()) ==
@@ -164,7 +165,7 @@ z3::expr CasualModel::getPhiConc(Event e) {
     return getEventPhiZ3Expr(e);
 }
 
-z3::expr CasualModel::getPhiAbs(Event e) {
+z3::expr RVPredictModel::getPhiAbs(Event e) {
     Event prevRead = trace_.getPrevReadInThread(e);
 
     if (Event::isNullEvent(prevRead)) return c_.bool_val(true);
@@ -172,7 +173,7 @@ z3::expr CasualModel::getPhiAbs(Event e) {
     return getPhiConc(prevRead);
 }
 
-z3::expr CasualModel::getPhiSC(Event e) {
+z3::expr RVPredictModel::getPhiSC(Event e) {
     assert(e.getEventType() == Event::EventType::Read);
 
     std::vector<Event> goodWrites = trace_.getGoodWritesForRead(e);
@@ -286,7 +287,7 @@ z3::expr CasualModel::getPhiSC(Event e) {
     return c_.bool_val(true);
 }
 
-uint32_t CasualModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
+uint32_t RVPredictModel::solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) {
     uint32_t race_count = 0;
 
     z3::expr_vector race_constraints(c_);

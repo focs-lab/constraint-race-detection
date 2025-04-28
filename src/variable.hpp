@@ -184,4 +184,14 @@ class Variable {
 
         return res;
     }
+
+    std::vector<Event> getReads() const {
+        std::vector<Event> allReads;
+
+        for (const auto& [_, reads] : tid_to_read_events_) {
+            allReads.insert(allReads.end(), reads.begin(), reads.end());
+        }
+
+        return allReads;
+    }
 };

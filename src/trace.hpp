@@ -47,6 +47,8 @@ class Trace {
     std::vector<Event> getGoodWritesForRead(const Event& read) const;
     std::vector<Event> getBadWritesForRead(const Event& read) const;
 
+    std::vector<Event> getAllReads() const;
+
     std::vector<std::pair<Event, Event>> getCOPs() const;
     std::vector<std::pair<Event, Event>> getForkBeginPairs() const;
     std::vector<std::pair<Event, Event>> getEndJoinPairs() const;
@@ -64,6 +66,7 @@ class Trace {
     getThreadIdToLockIdToLockRegions() const;
 
     Event getEvent(uint32_t eid) const;
+    Event getPrevEventInThread(const Event& e) const;
     Event getPrevReadInThread(const Event& e) const;
     Event getSameThreadSameVarPrevWrite(const Event& e) const;
     Event getPrevDiffReadInThread(const Event& e) const;

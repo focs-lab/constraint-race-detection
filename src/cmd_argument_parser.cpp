@@ -6,16 +6,20 @@
 
 struct Arguments {
     std::string executionTrace;  // -f compulsory
-    std::string witnessDir = "witness/"; // --witness-dir optional, default "witness/"
-    bool logWitness = false;     // --log-witness optional, default false
-    bool logBinaryWitness = false; // --log-binary-witness optional, default false
-    bool binaryFormat = true;    // --human optional, default true
-    uint32_t maxNoOfCOP = 0;     // -c optional
-    uint32_t maxNoOfRace = 0;    // -r optional
+    std::string witnessDir =
+        "witness/";  // --witness-dir optional, default "witness/"
+    std::string modelType = "naive";  // --model optional, default "naive"
+    bool logWitness = false;           // --log-witness optional, default false
+    bool logBinaryWitness =
+        false;                 // --log-binary-witness optional, default false
+    bool binaryFormat = true;  // --human optional, default true
+    uint32_t maxNoOfCOP = 0;   // -c optional
+    uint32_t maxNoOfRace = 0;  // -r optional
 
     static Arguments fromArgs(int argc, char* argv[]) {
         std::string executionTrace;
         std::string witnessDir = "witness/";
+        std::string modelType = "naive";
         bool logWitness = false;
         bool logBinaryWitness = false;
         bool binaryFormat = true;
@@ -34,6 +38,11 @@ struct Arguments {
         itr = std::find(arguments.begin(), arguments.end(), "--witness-dir");
         if (itr != arguments.end() && itr + 1 != arguments.end()) {
             witnessDir = *(++itr);
+        }
+
+        itr = std::find(arguments.begin(), arguments.end(), "--model");
+        if (itr != arguments.end() && itr + 1 != arguments.end()) {
+            modelType = *(++itr);
         }
 
         itr = std::find(arguments.begin(), arguments.end(), "-c");
@@ -63,6 +72,7 @@ struct Arguments {
         binaryFormat = std::find(arguments.begin(), arguments.end(),
                                  "--human") == arguments.end();
 
-        return {executionTrace, witnessDir, logWitness, logBinaryWitness, binaryFormat, maxNoOfCOP, maxNoOfRace};
+        return {executionTrace,   witnessDir,   modelType,  logWitness,
+                logBinaryWitness, binaryFormat, maxNoOfCOP, maxNoOfRace};
     }
 };

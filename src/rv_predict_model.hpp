@@ -4,21 +4,17 @@
 #include <utility>
 #include <vector>
 
-#include "logger.hpp"
 #include "event.hpp"
 #include "lockset_engine.hpp"
+#include "logger.hpp"
+#include "model.hpp"
 #include "model_logger.hpp"
 #include "trace.hpp"
 #include "transitive_closure.hpp"
 #include "vec_transitive_closure.hpp"
 
-class CasualModel {
+class RVPredictModel : public Model {
    private:
-    Trace& trace_;
-    ModelLogger& logger_;
-
-    bool log_witness_;
-
     z3::context c_;
     z3::solver s_;
 
@@ -30,13 +26,9 @@ class CasualModel {
     std::unordered_map<EID, uint32_t> read_to_phi_conc_offset_;
 
     LocksetEngine lockset_engine_;
-    // TransitiveClosure mhb_closure_;
-    VecTransitiveClosure hb_closure_;
-
     std::vector<std::pair<Event, Event>> filtered_cop_events_;
 
     void filterCOPs();
-
     void generateZ3VarMap();
     void generateMHBConstraints();
     void generateLockConstraints();
@@ -88,19 +80,21 @@ class CasualModel {
         /* Filter out good writes w s.t. w < w' < r where w' is another good
          * write or if r < w.
          */
-        // TODO: can we also filter out all w < w' < r where w' is actually a bad write?
+        // Make a copy for the inner loop to avoid iterator invalidation
+        const std::vector<Event> goodWritesCopy = goodWrites;
+
         goodWrites.erase(
-            std::remove_if(goodWrites.begin(), goodWrites.end(),
-                           [&goodWrites, r, this](const Event& write) {
-                               return hb(r, write) ||
-                                      std::any_of(
-                                          goodWrites.begin(), goodWrites.end(),
-                                          [&write, r,
-                                           this](const Event& otherWrite) {
-                                              return (hb(write, otherWrite) &&
-                                                      hb(otherWrite, r));
-                                          });
-                           }),
+            std::remove_if(
+                goodWrites.begin(), goodWrites.end(),
+                [&goodWritesCopy, r, this](const Event& write) {
+                    return hb(r, write) ||
+                           std::any_of(
+                               goodWritesCopy.begin(), goodWritesCopy.end(),
+                               [&write, r, this](const Event& otherWrite) {
+                                   return (hb(write, otherWrite) &&
+                                           hb(otherWrite, r));
+                               });
+                }),
             goodWrites.end());
     }
 
@@ -108,7 +102,8 @@ class CasualModel {
                                        const Event& r) {
         /* Filter out bad writes w' s.t. e < w'
          */
-        // TODO: can we also filter out all w' < w < r where w is some good write?
+        // TODO: can we also filter out all w' < w < r where w is some good
+        // write?
         badWrites.erase(std::remove_if(badWrites.begin(), badWrites.end(),
                                        [r, this](const Event& write) {
                                            return hb(r, write);
@@ -132,19 +127,16 @@ class CasualModel {
     }
 
    public:
-    CasualModel(Trace& trace, VecTransitiveClosure vc_hb, ModelLogger& logger,
+    RVPredictModel(Trace& trace, VecTransitiveClosure& vc_hb, ModelLogger& logger,
                 bool log_witness)
-        : trace_(trace),
-          logger_(logger),
-          log_witness_(log_witness),
+        : Model(trace, vc_hb, logger, log_witness),
           c_(),
           s_(c_, "QF_IDL"),
           var_map_(c_),
           mhb_constraints_(c_),
           lock_constraints_(c_),
           read_to_phi_conc_(c_),
-          lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()),
-          hb_closure_(vc_hb) {
+          lockset_engine_(trace_.getThreadIdToLockIdToLockRegions()) {
         z3::params p(c_);
         p.set("auto_config", false);
         p.set("smt.arith.solver", (unsigned)1);
@@ -155,5 +147,5 @@ class CasualModel {
         filterCOPs();
     }
 
-    uint32_t solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck);
+    uint32_t solve(uint32_t maxCOPCheck, uint32_t maxRaceCheck) override;
 };

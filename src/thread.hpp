@@ -19,7 +19,11 @@ class Thread {
 
    public:
     Thread() = default;
-    Thread(TID thread_id) : thread_id_(thread_id), first_read_(Event()), prev_read_(Event()), prev_acq_(Event()) {}
+    Thread(TID thread_id)
+        : thread_id_(thread_id),
+          first_read_(Event()),
+          prev_read_(Event()),
+          prev_acq_(Event()) {}
 
     void addEvent(const Event e) {
         /* Assume events will be added in order of the original trace */
@@ -27,30 +31,23 @@ class Thread {
 
         eid_to_prev_read_[e.getEventId()] = prev_read_;
 
-        if (e.getEventType() == Event::EventType::Acquire) 
-            prev_acq_ = e;
-        if (e.getEventType() == Event::EventType::Release)
-            prev_acq_ = Event();
+        if (e.getEventType() == Event::EventType::Acquire) prev_acq_ = e;
+        if (e.getEventType() == Event::EventType::Release) prev_acq_ = Event();
 
         eid_to_prev_acq_[e.getEventId()] = prev_acq_;
 
         if (e.getEventType() == Event::EventType::Read) {
             prev_read_ = e;
 
-            if (Event::isNullEvent(first_read_))
-                first_read_ = e;
+            if (Event::isNullEvent(first_read_)) first_read_ = e;
         }
     }
 
-    TID getThreadId() const {
-        return thread_id_;
-    }
+    TID getThreadId() const { return thread_id_; }
 
     const std::vector<Event>& getEvents() const { return events_; }
 
-    const Event& getFirstRead() const {
-        return first_read_;
-    }
+    const Event& getFirstRead() const { return first_read_; }
 
     const Event& getPrevRead(const Event& e) const {
         return eid_to_prev_read_.at(e.getEventId());
@@ -58,5 +55,18 @@ class Thread {
 
     const Event& getPrevAcq(const Event& e) const {
         return eid_to_prev_acq_.at(e.getEventId());
+    }
+
+    const Event getPrevEvent(const Event& e) const {
+        auto it = std::lower_bound(events_.begin(), events_.end(), e,
+                                   [](const Event& a, const Event& b) {
+                                       return a.getEventId() < b.getEventId();
+                                   });
+
+        if (it != events_.end() && it->getEventId() == e.getEventId() &&
+            it != events_.begin()) {
+            return *(it - 1);
+        }
+        return Event();
     }
 };
